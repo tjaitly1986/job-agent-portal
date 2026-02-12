@@ -1,0 +1,29 @@
+{
+  "name": "playwright",
+  "description": "Playwright MCP Server for browser automation",
+  "type": "browser-automation",
+  "config": {
+    "browser": "chromium",
+    "headless": true,
+    "timeout": 30000,
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  },
+  "capabilities": [
+    "browser_navigate",
+    "browser_click",
+    "browser_type",
+    "browser_screenshot",
+    "browser_evaluate",
+    "browser_wait",
+    "browser_close"
+  ],
+  "fallbackFor": [
+    "glassdoor",
+    "linkedin"
+  ],
+  "notes": "Used when Bright Data is blocked or for sites requiring complex JavaScript interactions"
+}

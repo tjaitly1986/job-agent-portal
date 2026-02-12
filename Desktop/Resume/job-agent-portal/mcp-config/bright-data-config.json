@@ -1,0 +1,45 @@
+{
+  "name": "bright-data",
+  "description": "Bright Data MCP Server for web scraping",
+  "type": "web-scraping",
+  "config": {
+    "apiKey": "${BRIGHT_DATA_API_KEY}",
+    "customerId": "${BRIGHT_DATA_CUSTOMER_ID}",
+    "zone": "${BRIGHT_DATA_ZONE}",
+    "proxyType": "datacenter",
+    "residentialFallback": true
+  },
+  "capabilities": [
+    "scrape_as_json",
+    "scrape_as_markdown",
+    "search_engine",
+    "scraping_browser"
+  ],
+  "rateLimits": {
+    "requestsPerSecond": 10,
+    "burstSize": 20
+  },
+  "platforms": {
+    "indeed": {
+      "proxyType": "datacenter",
+      "requestsPerSecond": 2
+    },
+    "dice": {
+      "proxyType": "datacenter",
+      "requestsPerSecond": 3
+    },
+    "glassdoor": {
+      "proxyType": "residential",
+      "requestsPerSecond": 2
+    },
+    "ziprecruiter": {
+      "proxyType": "datacenter",
+      "requestsPerSecond": 2
+    },
+    "linkedin": {
+      "proxyType": "residential",
+      "requestsPerSecond": 0.5,
+      "requiresAuth": true
+    }
+  }
+}

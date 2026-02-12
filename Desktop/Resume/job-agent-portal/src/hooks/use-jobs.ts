@@ -1,0 +1,54 @@
+'use client'
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Job, JobFilterParams } from '@/types/job'
+
+const API_BASE = '/api'
+
+interface JobsResponse {
+  jobs: Job[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export function useJobs(filters: JobFilterParams) {
+  return useQuery({
+    queryKey: ['jobs', filters],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, String(value))
+        }
+      })
+
+      const response = await fetch(`${API_BASE}/jobs?${params}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch jobs')
+      }
+
+      const data = await response.json()
+      return data.data as JobsResponse
+    },
+  })
+}
+
+export function useJob(id: string | null) {
+  return useQuery({
+    queryKey: ['job', id],
+    queryFn: async () => {
+      if (!id) return null
+
+      const response = await fetch(`${API_BASE}/jobs/${id}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch job')
+      }
+
+      const data = await response.json()
+      return data.data as Job
+    },
+    enabled: !!id,
+  })
+}

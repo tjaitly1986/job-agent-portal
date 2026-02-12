@@ -1,0 +1,11 @@
+.next
+node_modules
+dist
+build
+coverage
+*.sqlite
+.env.local
+.env*.local
+package-lock.json
+pnpm-lock.yaml
+yarn.lock

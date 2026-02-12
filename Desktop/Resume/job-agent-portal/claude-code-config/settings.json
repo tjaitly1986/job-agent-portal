@@ -1,0 +1,62 @@
+{
+  "mcpServers": {
+    "bright-data": {
+      "command": "npx",
+      "args": ["@anthropic-ai/mcp-server-bright-data"],
+      "env": {
+        "BRIGHT_DATA_API_KEY": "${BRIGHT_DATA_API_KEY}",
+        "BRIGHT_DATA_BROWSER_AUTH": "${BRIGHT_DATA_BROWSER_AUTH}"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@anthropic-ai/mcp-server-playwright"],
+      "env": {
+        "PLAYWRIGHT_HEADLESS": "true",
+        "PLAYWRIGHT_BROWSER": "chromium"
+      }
+    }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '⚠ Check CLAUDE.md for naming conventions and code style.'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=\"$CLAUDE_FILE_PATH\"; if [[ \"$file\" == *.ts || \"$file\" == *.tsx ]]; then npx tsc --noEmit \"$file\" 2>&1 | head -20; fi"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(git *)",
+      "Bash(mkdir *)",
+      "Bash(ls *)",
+      "Bash(pip install *)",
+      "mcp__bright-data__*",
+      "mcp__playwright__*"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(sudo *)",
+      "Bash(chmod 777 *)"
+    ]
+  }
+}
