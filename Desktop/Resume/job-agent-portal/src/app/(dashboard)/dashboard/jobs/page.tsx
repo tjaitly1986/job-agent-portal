@@ -338,7 +338,7 @@ export default function JobsPage() {
                 <Search className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No search performed yet</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Select profiles and click "Search Jobs" to find matching opportunities
+                  Select profiles and click &quot;Search Jobs&quot; to find matching opportunities
                 </p>
                 <Button onClick={() => setMainTab('search')}>
                   Go to Search

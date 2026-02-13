@@ -51,6 +51,7 @@ export function ChatWindow({ conversationId, jobContext, resumeId }: ChatWindowP
 
       if (data.success && data.data.messages) {
         setMessages(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           data.data.messages.map((msg: any) => ({
             role: msg.role,
             content: msg.content,

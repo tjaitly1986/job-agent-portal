@@ -18,6 +18,7 @@ export default function ResumesPage() {
     await uploadResume.mutateAsync({ file, label, isDefault })
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEdit = (resume: any) => {
     const newLabel = prompt('Enter new label:', resume.label || resume.filename)
     if (newLabel) {
@@ -25,17 +26,20 @@ export default function ResumesPage() {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDelete = (resume: any) => {
     if (confirm(`Are you sure you want to delete "${resume.label || resume.filename}"?`)) {
       deleteResume.mutate(resume.id)
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDownload = (resume: any) => {
     // TODO: Implement download functionality
     window.open(resume.filePath, '_blank')
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSetDefault = (resume: any) => {
     updateResume.mutate({ id: resume.id, isDefault: true })
   }

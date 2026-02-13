@@ -100,7 +100,7 @@ export class IndeedScraper extends BaseScraper {
    * Parse Indeed search results page
    */
   // @ts-expect-error - Method will be used when scraping is implemented
-  private parseSearchResults(html: string): Partial<ScrapedJob>[] {
+  private parseSearchResults(_html: string): Partial<ScrapedJob>[] {
     // TODO: Implement search results parsing
     // Extract job cards from search page
     // Return array of partial job objects

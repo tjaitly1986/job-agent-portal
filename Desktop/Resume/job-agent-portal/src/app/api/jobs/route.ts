@@ -124,6 +124,7 @@ export async function GET(request: NextRequest) {
     const total = totalResult[0]?.count || 0
 
     // Calculate match scores if user has resume
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let jobsWithScores: any[] = results
     try {
       // Fetch user's resume
@@ -138,6 +139,7 @@ export async function GET(request: NextRequest) {
         const parsedResume = await parseResume(user[0].resumeText)
 
         // Calculate match scores for all jobs
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const matches = calculateJobMatches(results as any[], parsedResume)
 
         // Map back to jobs with scores

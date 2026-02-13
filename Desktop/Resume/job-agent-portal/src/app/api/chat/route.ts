@@ -268,6 +268,7 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildSystemPrompt(resumeText: string, jobContext?: any): string {
   let prompt = `You are an AI career assistant helping a job seeker craft personalized outreach messages to recruiters and hiring managers.
 

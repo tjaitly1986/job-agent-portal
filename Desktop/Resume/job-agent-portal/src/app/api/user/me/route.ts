@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Remove sensitive fields
-    const { passwordHash, ...userWithoutPassword } = user
+    const { passwordHash: _passwordHash, ...userWithoutPassword } = user
 
     return successResponse(userWithoutPassword)
   } catch (error) {
@@ -110,7 +110,7 @@ export async function PATCH(request: NextRequest) {
       .returning()
 
     // Remove sensitive fields
-    const { passwordHash, ...userWithoutPassword } = updatedUser
+    const { passwordHash: _passwordHash, ...userWithoutPassword } = updatedUser
 
     return successResponse(userWithoutPassword, 'Profile updated successfully')
   } catch (error) {

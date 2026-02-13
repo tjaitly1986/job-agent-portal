@@ -49,6 +49,7 @@ export default function ProfilesPage() {
     console.log('Triggering search for profile:', profile.id)
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSubmit = async (data: any) => {
     if (editingProfile) {
       await updateProfile.mutateAsync({
