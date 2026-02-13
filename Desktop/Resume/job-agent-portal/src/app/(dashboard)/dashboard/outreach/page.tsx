@@ -9,6 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Mail, Linkedin, Loader2, Copy, CheckCircle2, FileText, Upload, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -16,6 +23,7 @@ export const dynamic = 'force-dynamic'
 
 type MessageType = 'linkedin' | 'email'
 type DocumentType = 'resume' | 'coverLetter'
+type ToneType = 'professional' | 'formal' | 'casual'
 
 export default function OutreachPage() {
   const { toast } = useToast()
@@ -24,6 +32,7 @@ export default function OutreachPage() {
   const [recruiterName, setRecruiterName] = useState('')
   const [company, setCompany] = useState('')
   const [jobTitle, setJobTitle] = useState('')
+  const [messageTone, setMessageTone] = useState<ToneType>('professional')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isGeneratingDocs, setIsGeneratingDocs] = useState(false)
   const [isConverting, setIsConverting] = useState(false)
@@ -34,6 +43,8 @@ export default function OutreachPage() {
   const [copiedType, setCopiedType] = useState<MessageType | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [convertedPdfUrl, setConvertedPdfUrl] = useState('')
+  const [showResumeDialog, setShowResumeDialog] = useState(false)
+  const [customResumeFile, setCustomResumeFile] = useState<File | null>(null)
 
   const handleGenerate = async () => {
     if (!jobDescription.trim()) {
@@ -54,6 +65,7 @@ export default function OutreachPage() {
           jobDescription,
           recruiterName: recruiterName || 'Hiring Manager',
           company: company || 'the company',
+          tone: messageTone,
         }),
       })
 
@@ -93,7 +105,7 @@ export default function OutreachPage() {
     setTimeout(() => setCopiedType(null), 2000)
   }
 
-  const handleGenerateDocuments = async () => {
+  const handleGenerateDocuments = async (useCustomResume: boolean = false) => {
     if (!jobDescription.trim()) {
       toast({
         title: 'Job description required',
@@ -104,6 +116,7 @@ export default function OutreachPage() {
     }
 
     setIsGeneratingDocs(true)
+    setShowResumeDialog(false)
     try {
       const response = await fetch('/api/documents/generate', {
         method: 'POST',
@@ -116,7 +129,8 @@ export default function OutreachPage() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to generate documents')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate documents')
       }
 
       const data = await response.json()
@@ -128,9 +142,12 @@ export default function OutreachPage() {
         description: 'Resume and cover letter have been generated successfully',
       })
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate documents'
       toast({
         title: 'Generation failed',
-        description: 'Failed to generate documents. Please try again.',
+        description: errorMessage.includes('resume')
+          ? 'Please upload your resume first in the Resumes section'
+          : errorMessage,
         variant: 'destructive',
       })
     } finally {
@@ -255,6 +272,39 @@ export default function OutreachPage() {
                 />
               </div>
 
+              <div>
+                <Label>Message Tone</Label>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <Button
+                    type="button"
+                    variant={messageTone === 'professional' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setMessageTone('professional')}
+                    className="w-full"
+                  >
+                    Professional
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={messageTone === 'formal' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setMessageTone('formal')}
+                    className="w-full"
+                  >
+                    Formal
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={messageTone === 'casual' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setMessageTone('casual')}
+                    className="w-full"
+                  >
+                    Casual
+                  </Button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   onClick={handleGenerate}
@@ -275,7 +325,7 @@ export default function OutreachPage() {
                 </Button>
 
                 <Button
-                  onClick={handleGenerateDocuments}
+                  onClick={() => setShowResumeDialog(true)}
                   disabled={isGeneratingDocs || !jobDescription.trim()}
                   variant="secondary"
                   size="lg"
@@ -493,6 +543,66 @@ export default function OutreachPage() {
           </Card>
         </div>
       </div>
+
+      {/* Resume Selection Dialog */}
+      <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choose Resume Source</DialogTitle>
+            <DialogDescription>
+              Select which resume to use for generating your customized documents
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <Button
+              onClick={() => handleGenerateDocuments(false)}
+              variant="outline"
+              className="w-full justify-start h-auto p-4"
+              disabled={isGeneratingDocs}
+            >
+              <div className="text-left">
+                <div className="font-semibold mb-1">Use Base Resume</div>
+                <div className="text-sm text-muted-foreground">
+                  Use your profile resume to generate tailored documents
+                </div>
+              </div>
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="customResume">Upload New Resume (Optional)</Label>
+              <Input
+                id="customResume"
+                type="file"
+                accept=".txt,.docx,.pdf"
+                onChange={(e) => setCustomResumeFile(e.target.files?.[0] || null)}
+                className="cursor-pointer"
+              />
+              {customResumeFile && (
+                <p className="text-sm text-muted-foreground">
+                  Selected: {customResumeFile.name}
+                </p>
+              )}
+              <Button
+                onClick={() => handleGenerateDocuments(true)}
+                disabled={!customResumeFile || isGeneratingDocs}
+                className="w-full"
+              >
+                Use Custom Resume
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
