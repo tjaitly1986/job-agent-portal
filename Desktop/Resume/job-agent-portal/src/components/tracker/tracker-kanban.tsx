@@ -34,7 +34,7 @@ export function TrackerKanban({
   onEdit,
   onDelete,
   onViewDetails,
-  onStatusChange,
+  onStatusChange: _onStatusChange,
 }: TrackerKanbanProps) {
   if (isLoading) {
     return (

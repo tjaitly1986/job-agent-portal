@@ -70,7 +70,7 @@ export class PlaywrightClient {
   /**
    * Wait for a selector
    */
-  async waitForSelector(selector: string, timeout: number = 30000): Promise<void> {
+  async waitForSelector(selector: string, _timeout: number = 30000): Promise<void> {
     console.log(`[Playwright] Wait for: ${selector}`)
     // In production: await page.waitForSelector(selector, { timeout })
   }
@@ -96,7 +96,7 @@ export class PlaywrightClient {
   /**
    * Evaluate JavaScript in page context
    */
-  async evaluate<T>(pageFunction: string): Promise<T> {
+  async evaluate<T>(_pageFunction: string): Promise<T> {
     console.log('[Playwright] Evaluate JS')
     // In Claude Code: mcp__playwright__browser_evaluate
     // In production: return await page.evaluate(pageFunction)

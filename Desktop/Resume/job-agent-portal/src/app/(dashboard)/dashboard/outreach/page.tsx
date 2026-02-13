@@ -17,12 +17,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Mail, Linkedin, Loader2, Copy, CheckCircle2, FileText, Upload, Download } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
 type MessageType = 'linkedin' | 'email'
-type DocumentType = 'resume' | 'coverLetter'
+
 type ToneType = 'professional' | 'enthusiastic' | 'conversational'
 
 export default function OutreachPage() {
@@ -107,7 +106,7 @@ export default function OutreachPage() {
     setTimeout(() => setCopiedType(null), 2000)
   }
 
-  const handleGenerateDocuments = async (useCustomResume: boolean = false) => {
+  const handleGenerateDocuments = async (_useCustomResume: boolean = false) => {
     if (!jobDescription.trim()) {
       toast({
         title: 'Job description required',

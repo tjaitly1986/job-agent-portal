@@ -46,6 +46,7 @@ export function JobDetail({ job, onSave, onTrack, isSaved, isTracked }: JobDetai
     if (job.salaryMax) {
       return `Up to ${formatAmount(job.salaryMax)}`
     }
+    return null
   }
 
   const salary = formatSalary()

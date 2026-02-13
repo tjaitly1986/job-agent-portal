@@ -16,11 +16,11 @@ import { eq } from 'drizzle-orm'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserIdFromRequest(request)
-    const scrapeRunId = params.id
+    const { id: scrapeRunId } = await params
 
     // Fetch scrape run
     const [scrapeRun] = await db

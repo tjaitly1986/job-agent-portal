@@ -16,14 +16,6 @@ interface JobCardProps {
 }
 
 export function JobCard({ job, onClick, onSave, isSaved }: JobCardProps) {
-  const getMatchScoreColor = (score: number | null) => {
-    if (!score) return 'secondary'
-    if (score >= 85) return 'default' // Green
-    if (score >= 70) return 'default' // Blue
-    if (score >= 50) return 'secondary'
-    return 'outline'
-  }
-
   const getMatchScoreBgColor = (score: number | null) => {
     if (!score) return ''
     if (score >= 85) return 'bg-green-500 text-white'
@@ -51,6 +43,7 @@ export function JobCard({ job, onClick, onSave, isSaved }: JobCardProps) {
     if (job.salaryMax) {
       return `Up to ${formatAmount(job.salaryMax)}`
     }
+    return null
   }
 
   const salary = formatSalary()

@@ -170,7 +170,7 @@ function calculateSalaryMatch(
 
   // Check if ranges overlap
   if (jobMax >= userMin && jobMin <= userMax) {
-    const salaryText = job.salaryText || `$${jobMin}-${jobMax}`
+    const salaryText = `$${jobMin}-${jobMax}`
     reasons.push(`Salary range ${salaryText} aligns with your expectations`)
     return 1.0
   }
@@ -286,7 +286,7 @@ export function calculateJobMatches(
  * Generate "Why this job?" explanation
  */
 function generateFitExplanation(
-  job: Job,
+  _job: Job,
   reasons: string[],
   score: number
 ): string {

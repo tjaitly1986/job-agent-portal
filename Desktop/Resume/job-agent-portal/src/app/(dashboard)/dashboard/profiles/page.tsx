@@ -7,7 +7,6 @@ import { ProfileForm } from '@/components/profiles/profile-form'
 import { useProfiles, useCreateProfile, useUpdateProfile, useDeleteProfile } from '@/hooks/use-profiles'
 import { SearchProfile } from '@/types/profile'
 import { UserCircle, Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { useUIStore } from '@/stores/ui-store'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +16,7 @@ export default function ProfilesPage() {
   const createProfile = useCreateProfile()
   const updateProfile = useUpdateProfile()
   const deleteProfile = useDeleteProfile()
-  const { activeModal, modalData, openModal, closeModal } = useUIStore()
+  useUIStore()
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingProfile, setEditingProfile] = useState<SearchProfile | undefined>()

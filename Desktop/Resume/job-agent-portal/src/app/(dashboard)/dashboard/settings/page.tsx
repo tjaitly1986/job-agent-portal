@@ -3,11 +3,9 @@
 import { useState } from 'react'
 import { PageHeader } from '@/components/shared/page-header'
 import { Section } from '@/components/shared/section'
-import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { useCurrentUser, useUpdateUser } from '@/hooks/use-user'
 import { Settings, User, Lock } from 'lucide-react'
 

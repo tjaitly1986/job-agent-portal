@@ -4,7 +4,7 @@
 
 export type Platform = 'indeed' | 'dice' | 'glassdoor' | 'ziprecruiter' | 'linkedin'
 
-export type EmploymentType = 'full-time' | 'part-time' | 'contract' | 'c2c' | 'temporary' | 'contract-to-hire'
+export type EmploymentType = 'full-time' | 'part-time' | 'contract' | 'c2c' | 'temporary' | 'contract-to-hire' | 'internship'
 
 export type SalaryType = 'hourly' | 'annual'
 

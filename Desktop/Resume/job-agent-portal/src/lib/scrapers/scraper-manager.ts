@@ -4,7 +4,7 @@ import { IndeedScraper } from './indeed'
 import { DiceScraper } from './dice'
 import { LinkedInScraper } from './linkedin'
 import { BaseScraper } from './base-scraper'
-import { ScrapeOptions, ScrapedJob, ScrapeResult } from '../mcp/types'
+import { ScrapeOptions, ScrapedJob } from '../mcp/types'
 import { eq } from 'drizzle-orm'
 import crypto from 'crypto'
 

@@ -1,9 +1,6 @@
 import { NextRequest } from 'next/server'
 import { successResponse, badRequestResponse, serverErrorResponse } from '@/lib/api/response'
 import { getUserIdFromRequest } from '@/lib/api/auth'
-import { db } from '@/lib/db'
-import { users } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
 import Anthropic from '@anthropic-ai/sdk'
 
 const anthropic = new Anthropic({
@@ -16,7 +13,7 @@ const anthropic = new Anthropic({
  */
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getUserIdFromRequest(request)
+    await getUserIdFromRequest(request)
     const body = await request.json()
 
     const { jobDescription, recruiterName, company, tone = 'professional', prerequisites } = body

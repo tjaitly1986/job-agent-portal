@@ -67,7 +67,7 @@ export abstract class BaseScraper {
     const isRemote = this.detectRemote(job.title, job.location, job.description)
 
     // Generate dedup hash
-    const dedupHash = generateDedupHash(job.title, job.company, job.location)
+    generateDedupHash(job.title, job.company, job.location)
 
     return {
       externalId: job.externalId,
@@ -159,7 +159,7 @@ export abstract class BaseScraper {
    * Extract job ID from URL if possible
    */
   protected extractJobIdFromUrl(url: string): string | undefined {
-    const match = url.match(/(?:jk=|job[_-]?id[_-=]|\/jobs?\/)([a-zA-Z0-9]+)/i)
+    const match = url.match(/(?:jk=|job[_-]?id[_=\-]|\/jobs?\/)([a-zA-Z0-9]+)/i)
     return match ? match[1] : undefined
   }
 

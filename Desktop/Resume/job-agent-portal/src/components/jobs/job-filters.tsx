@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { JobFilterParams, Platform, EmploymentType } from '@/types/job'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'

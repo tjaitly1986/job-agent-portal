@@ -115,7 +115,6 @@ Remember: Output plain text only. No asterisks, no underscores, no markdown symb
             new Paragraph({
               text: userName.toUpperCase(),
               heading: HeadingLevel.HEADING_1,
-              font: 'Calibri',
             }),
             ...resumeContent.split('\n').map(
               (line) =>

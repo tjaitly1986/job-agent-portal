@@ -3,7 +3,6 @@
 import { Job } from '@/types/job'
 import { JobCard } from './job-card'
 import { EmptyState } from '@/components/shared/empty-state'
-import { LoadingSpinner } from '@/components/shared/loading-spinner'
 import { Briefcase } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 

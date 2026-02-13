@@ -90,7 +90,7 @@ export class LinkedInScraper extends BaseScraper {
   /**
    * Parse a single LinkedIn job listing page
    */
-  protected parseJobListing(html: string, url: string): Partial<ScrapedJob> | null {
+  protected parseJobListing(_html: string, _url: string): Partial<ScrapedJob> | null {
     // TODO: Implement LinkedIn parsing
     // LinkedIn provides:
     // - Poster's name and profile (valuable for outreach!)

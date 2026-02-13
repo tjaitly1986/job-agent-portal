@@ -9,7 +9,6 @@ import {
   Briefcase,
   MapPin,
   DollarSign,
-  Clock,
   Edit,
   Trash2,
   Power,
@@ -44,6 +43,7 @@ export function ProfileCard({
     if (profile.maxSalary) {
       return `Up to $${profile.maxSalary}/hr`
     }
+    return null
   }
 
   const salary = formatSalary()

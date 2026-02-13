@@ -33,7 +33,7 @@ export class BrightDataClient {
    * Scrape a job listing page and return structured data
    * Uses Bright Data's scrape_as_json capability
    */
-  async scrapeJobPage(url: string): Promise<Partial<ScrapedJob> | null> {
+  async scrapeJobPage(_url: string): Promise<Partial<ScrapedJob> | null> {
     if (!this.isConfigured()) {
       throw new Error('Bright Data not configured')
     }
@@ -54,7 +54,7 @@ export class BrightDataClient {
   /**
    * Search for jobs using Bright Data's search engine capability
    */
-  async searchJobs(options: ScrapeOptions): Promise<ScrapeResult> {
+  async searchJobs(_options: ScrapeOptions): Promise<ScrapeResult> {
     if (!this.isConfigured()) {
       return {
         jobs: [],

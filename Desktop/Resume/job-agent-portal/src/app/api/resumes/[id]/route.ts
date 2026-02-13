@@ -19,11 +19,11 @@ import fs from 'fs/promises'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserIdFromRequest(request)
-    const resumeId = params.id
+    const { id: resumeId } = await params
 
     const [resume] = await db
       .select()
@@ -56,11 +56,11 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserIdFromRequest(request)
-    const resumeId = params.id
+    const { id: resumeId } = await params
     const body = await request.json()
 
     // Validate input
@@ -126,11 +126,11 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserIdFromRequest(request)
-    const resumeId = params.id
+    const { id: resumeId } = await params
 
     // Check if resume exists and user owns it
     const [existingResume] = await db

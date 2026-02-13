@@ -3,7 +3,6 @@
 import { SearchProfile } from '@/types/profile'
 import { ProfileCard } from './profile-card'
 import { EmptyState } from '@/components/shared/empty-state'
-import { LoadingSpinner } from '@/components/shared/loading-spinner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { UserCircle } from 'lucide-react'
 

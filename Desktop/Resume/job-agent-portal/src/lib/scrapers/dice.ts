@@ -80,7 +80,7 @@ export class DiceScraper extends BaseScraper {
   /**
    * Parse a single Dice job listing page
    */
-  protected parseJobListing(html: string, url: string): Partial<ScrapedJob> | null {
+  protected parseJobListing(_html: string, _url: string): Partial<ScrapedJob> | null {
     // TODO: Implement HTML parsing
     // Dice often includes:
     // - Recruiter name and company

@@ -6,7 +6,6 @@ import {
   successResponse,
   badRequestResponse,
   serverErrorResponse,
-  unauthorizedResponse,
 } from '@/lib/api/response'
 import { getUserIdFromRequest } from '@/lib/api/auth'
 import { eq, and, gte, lte, like, desc, asc, sql } from 'drizzle-orm'
@@ -125,7 +124,7 @@ export async function GET(request: NextRequest) {
     const total = totalResult[0]?.count || 0
 
     // Calculate match scores if user has resume
-    let jobsWithScores = results
+    let jobsWithScores: any[] = results
     try {
       // Fetch user's resume
       const user = await db
@@ -139,7 +138,7 @@ export async function GET(request: NextRequest) {
         const parsedResume = await parseResume(user[0].resumeText)
 
         // Calculate match scores for all jobs
-        const matches = calculateJobMatches(results, parsedResume)
+        const matches = calculateJobMatches(results as any[], parsedResume)
 
         // Map back to jobs with scores
         jobsWithScores = matches.map(m => ({

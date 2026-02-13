@@ -18,6 +18,7 @@ export const employmentTypeSchema = z.enum([
   'part-time',
   'contract-to-hire',
   'temporary',
+  'internship',
 ])
 
 // Salary type

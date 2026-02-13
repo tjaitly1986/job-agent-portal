@@ -6,7 +6,7 @@ import { unauthorizedResponse } from './response'
  * Get the current user from the request
  * Returns null if not authenticated
  */
-export async function getCurrentUserFromRequest(request: NextRequest) {
+export async function getCurrentUserFromRequest(_request: NextRequest) {
   try {
     const session = await auth()
     return session?.user || null

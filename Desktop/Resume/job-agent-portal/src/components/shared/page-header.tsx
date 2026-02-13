@@ -1,15 +1,27 @@
 import { LucideIcon } from 'lucide-react'
+import { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+
+interface ActionObject {
+  label: string
+  onClick: () => void
+  icon?: LucideIcon
+}
 
 interface PageHeaderProps {
   icon?: LucideIcon
   title: string
   description?: string
-  action?: {
-    label: string
-    onClick: () => void
-    icon?: LucideIcon
-  }
+  action?: ActionObject | ReactNode
+}
+
+function isActionObject(action: ActionObject | ReactNode): action is ActionObject {
+  return (
+    typeof action === 'object' &&
+    action !== null &&
+    'label' in action &&
+    'onClick' in action
+  )
 }
 
 export function PageHeader({ icon: Icon, title, description, action }: PageHeaderProps) {
@@ -22,11 +34,13 @@ export function PageHeader({ icon: Icon, title, description, action }: PageHeade
           {description && <p className="mt-1 text-muted-foreground">{description}</p>}
         </div>
       </div>
-      {action && (
+      {action && isActionObject(action) ? (
         <Button onClick={action.onClick}>
           {action.icon && <action.icon className="mr-2 h-4 w-4" />}
           {action.label}
         </Button>
+      ) : (
+        action
       )}
     </div>
   )

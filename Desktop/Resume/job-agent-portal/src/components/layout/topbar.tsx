@@ -2,15 +2,7 @@
 
 import { useSession, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Bell, LogOut, User } from 'lucide-react'
-import Link from 'next/link'
 
 export function Topbar() {
   const { data: session } = useSession()

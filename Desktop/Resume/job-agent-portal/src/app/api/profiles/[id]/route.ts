@@ -18,11 +18,11 @@ import { eq, and, sql } from 'drizzle-orm'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserIdFromRequest(request)
-    const profileId = params.id
+    const { id: profileId } = await params
 
     const [profile] = await db
       .select()
@@ -69,11 +69,11 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserIdFromRequest(request)
-    const profileId = params.id
+    const { id: profileId } = await params
     const body = await request.json()
 
     // Validate input
@@ -162,11 +162,11 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserIdFromRequest(request)
-    const profileId = params.id
+    const { id: profileId } = await params
 
     // Check if profile exists and user owns it
     const [existingProfile] = await db

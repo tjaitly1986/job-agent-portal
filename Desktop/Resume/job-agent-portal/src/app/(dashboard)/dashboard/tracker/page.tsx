@@ -3,7 +3,7 @@
 import { PageHeader } from '@/components/shared/page-header'
 import { TrackerKanban } from '@/components/tracker/tracker-kanban'
 import { TrackerTable } from '@/components/tracker/tracker-table'
-import { useApplications, useUpdateApplication, useDeleteApplication } from '@/hooks/use-tracker'
+import { useApplications, useDeleteApplication } from '@/hooks/use-tracker'
 import { useTrackerStore } from '@/stores/tracker-store'
 import { JobApplication } from '@/types/tracker'
 import { ClipboardList, LayoutGrid, Table } from 'lucide-react'
@@ -13,7 +13,6 @@ export const dynamic = 'force-dynamic'
 
 export default function TrackerPage() {
   const { data: applicationsData, isLoading } = useApplications()
-  const updateApplication = useUpdateApplication()
   const deleteApplication = useDeleteApplication()
   const { viewMode, setViewMode } = useTrackerStore()
 

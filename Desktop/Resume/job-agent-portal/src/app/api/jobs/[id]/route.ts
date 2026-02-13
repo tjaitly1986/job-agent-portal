@@ -15,13 +15,14 @@ import { eq } from 'drizzle-orm'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Require authentication
     await requireAuthApi(request)
 
-    const jobId = params.id
+    const { id } = await params
+    const jobId = id
 
     // Fetch job
     const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1)

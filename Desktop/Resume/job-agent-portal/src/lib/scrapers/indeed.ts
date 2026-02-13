@@ -84,7 +84,7 @@ export class IndeedScraper extends BaseScraper {
   /**
    * Parse a single Indeed job listing page
    */
-  protected parseJobListing(html: string, url: string): Partial<ScrapedJob> | null {
+  protected parseJobListing(_html: string, _url: string): Partial<ScrapedJob> | null {
     // TODO: Implement HTML parsing
     // This would use cheerio or similar to extract:
     // - title, company, location
@@ -99,6 +99,7 @@ export class IndeedScraper extends BaseScraper {
   /**
    * Parse Indeed search results page
    */
+  // @ts-expect-error - Method will be used when scraping is implemented
   private parseSearchResults(html: string): Partial<ScrapedJob>[] {
     // TODO: Implement search results parsing
     // Extract job cards from search page

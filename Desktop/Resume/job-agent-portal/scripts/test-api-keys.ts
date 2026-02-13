@@ -35,6 +35,7 @@ async function testAnthropicAPI() {
       console.log(`   Response: ${content.text}`)
       return true
     }
+    return false
   } catch (error: any) {
     console.log('❌ Anthropic API test failed:', error.message)
     if (error.status === 401) {
