@@ -137,6 +137,9 @@ export const jobs = sqliteTable(
     sourceUrl: text('source_url'),
     isExpired: integer('is_expired', { mode: 'boolean' }).default(false),
     scrapedAt: text('scraped_at').default(sql`(datetime('now'))`),
+    // AI matching fields
+    matchScore: real('match_score'), // 0-100 score for user match
+    matchReasons: text('match_reasons'), // JSON array of match reasons
     createdAt: text('created_at').default(sql`(datetime('now'))`),
     updatedAt: text('updated_at').default(sql`(datetime('now'))`),
   },

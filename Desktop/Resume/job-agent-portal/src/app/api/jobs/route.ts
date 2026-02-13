@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { jobs } from '@/lib/db/schema'
+import { jobs, users } from '@/lib/db/schema'
 import { jobFilterSchema } from '@/lib/validators/job-schema'
 import {
   successResponse,
@@ -8,8 +8,10 @@ import {
   serverErrorResponse,
   unauthorizedResponse,
 } from '@/lib/api/response'
-import { requireAuthApi } from '@/lib/api/auth'
+import { getUserIdFromRequest } from '@/lib/api/auth'
 import { eq, and, gte, lte, like, desc, asc, sql } from 'drizzle-orm'
+import { parseResume } from '@/lib/ai/resume-parser'
+import { calculateJobMatches } from '@/lib/ai/job-matcher'
 
 /**
  * GET /api/jobs
@@ -17,8 +19,8 @@ import { eq, and, gte, lte, like, desc, asc, sql } from 'drizzle-orm'
  */
 export async function GET(request: NextRequest) {
   try {
-    // Require authentication
-    await requireAuthApi(request)
+    // Require authentication and get user ID
+    const userId = await getUserIdFromRequest(request)
 
     // Parse query parameters
     const searchParams = request.nextUrl.searchParams
@@ -122,8 +124,37 @@ export async function GET(request: NextRequest) {
 
     const total = totalResult[0]?.count || 0
 
+    // Calculate match scores if user has resume
+    let jobsWithScores = results
+    try {
+      // Fetch user's resume
+      const user = await db
+        .select({ resumeText: users.resumeText })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+
+      if (user[0]?.resumeText) {
+        // Parse resume (consider caching this in production)
+        const parsedResume = await parseResume(user[0].resumeText)
+
+        // Calculate match scores for all jobs
+        const matches = calculateJobMatches(results, parsedResume)
+
+        // Map back to jobs with scores
+        jobsWithScores = matches.map(m => ({
+          ...m.job,
+          matchScore: m.matchScore,
+          matchReasons: m.matchReasons,
+        }))
+      }
+    } catch (matchError) {
+      // If match scoring fails, return jobs without scores
+      console.error('Match scoring error:', matchError)
+    }
+
     return successResponse({
-      jobs: results,
+      jobs: jobsWithScores,
       total,
       limit: filters.limit,
       offset: filters.offset,

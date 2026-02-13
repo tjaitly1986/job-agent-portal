@@ -29,6 +29,9 @@ export interface Job {
   sourceUrl: string | null
   dedupHash: string | null
   isFeatured: boolean
+  // AI matching fields
+  matchScore: number | null
+  matchReasons: string[] | null
   createdAt: string
   updatedAt: string
 }
