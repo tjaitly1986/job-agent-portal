@@ -47,53 +47,30 @@ export async function POST(request: NextRequest) {
     // Convert using LibreOffice (cross-platform solution)
     // Note: LibreOffice must be installed on the server
     try {
-      // Try LibreOffice first
+      // Try LibreOffice first - it preserves all formatting
       await execAsync(
         `soffice --headless --convert-to pdf --outdir "${uploadsDir}" "${docxPath}"`
       )
-    } catch (error) {
-      // Fallback: Use pdf-lib for basic conversion
-      // This is a simplified version - for production, use a proper conversion service
-      console.warn('LibreOffice not available, using fallback method')
 
-      // Import pdf-lib dynamically
-      const { PDFDocument, rgb, StandardFonts } = await import('pdf-lib')
-      const mammoth = await import('mammoth')
+      // LibreOffice creates a PDF with the same name as the docx file but with .pdf extension
+      // We need to rename it to our desired filename
+      const libreOfficePdfPath = docxPath.replace('.docx', '.pdf')
 
-      // Extract text from docx
-      const result = await mammoth.extractRawText({ buffer })
-      const text = result.value
-
-      // Create PDF
-      const pdfDoc = await PDFDocument.create()
-      const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
-      const fontSize = 11
-      const margin = 50
-      const lineHeight = fontSize * 1.2
-
-      let page = pdfDoc.addPage([612, 792]) // Letter size
-      let y = page.getHeight() - margin
-
-      const lines = text.split('\n')
-      for (const line of lines) {
-        if (y < margin) {
-          page = pdfDoc.addPage([612, 792])
-          y = page.getHeight() - margin
-        }
-
-        page.drawText(line.substring(0, 80), {
-          x: margin,
-          y,
-          size: fontSize,
-          font,
-          color: rgb(0, 0, 0),
-        })
-
-        y -= lineHeight
+      // Check if LibreOffice created the PDF
+      if (existsSync(libreOfficePdfPath)) {
+        // Rename to our desired filename
+        const { rename } = await import('fs/promises')
+        await rename(libreOfficePdfPath, pdfPath)
+      } else {
+        throw new Error('LibreOffice did not create PDF file')
       }
-
-      const pdfBytes = await pdfDoc.save()
-      await writeFile(pdfPath, pdfBytes)
+    } catch (error) {
+      // If LibreOffice is not available or fails, return an error
+      // Do NOT use fallback that strips formatting
+      console.error('LibreOffice conversion failed:', error)
+      return serverErrorResponse(
+        'PDF conversion requires LibreOffice to be installed. Please install LibreOffice or use the Word document directly.'
+      )
     }
 
     return successResponse({
