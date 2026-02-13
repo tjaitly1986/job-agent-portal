@@ -39,7 +39,14 @@ export async function POST(request: NextRequest) {
     const userName = user.name || 'Candidate'
 
     // Generate resume content
-    const resumePrompt = `You are a professional resume writer. Based on the candidate's master resume and the target job description, create a tailored resume that highlights the most relevant experience and skills.
+    const resumePrompt = `You are a professional resume writer. Based on the candidate's master resume and the target job description, tailor the existing resume to highlight the most relevant experience and skills.
+
+CRITICAL INSTRUCTIONS:
+1. PRESERVE the original resume's format, structure, and section order exactly as provided
+2. Keep ALL existing content - do not remove or shorten sections
+3. Only HIGHLIGHT or EMPHASIZE the most relevant experience by reordering bullet points or adding keywords
+4. Do not create a new resume - only tailor the existing one
+5. Maintain the same length and level of detail as the original
 
 Master Resume:
 ${user.resumeText}
@@ -50,29 +57,13 @@ ${jobDescription}
 Job Title: ${jobTitle}
 Company: ${company}
 
-Create a tailored resume that:
-1. Emphasizes relevant experience and skills
-2. Uses keywords from the job description
-3. Quantifies achievements where possible
-4. Is ATS-friendly
-5. Is concise and impactful
+Tailoring approach:
+- Add relevant keywords from the job description naturally throughout
+- Reorder bullet points to put most relevant experience first
+- Emphasize quantifiable achievements that match job requirements
+- Keep the exact same format and section structure as the original resume
 
-Format the output as sections:
-SUMMARY
-[Professional summary paragraph]
-
-SKILLS
-[Comma-separated skills]
-
-EXPERIENCE
-[Company Name] - [Job Title] ([Dates])
-• [Achievement/responsibility]
-• [Achievement/responsibility]
-
-EDUCATION
-[Degree] - [Institution] ([Year])
-
-Output only the resume content in this format.`
+Output the complete tailored resume with all original sections preserved.`
 
     const resumeResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
@@ -86,6 +77,12 @@ Output only the resume content in this format.`
     // Generate cover letter content
     const coverLetterPrompt = `You are a professional cover letter writer. Create a compelling, personalized cover letter for this job application.
 
+CRITICAL FORMATTING INSTRUCTIONS:
+- Do NOT use any markdown formatting (no **, no __, no italics markers)
+- Write in plain text only
+- Do not include any special formatting symbols
+- The output will be formatted as a Word document
+
 Candidate Resume:
 ${user.resumeText}
 
@@ -95,13 +92,14 @@ ${jobDescription}
 Job Title: ${jobTitle}
 Company: ${company}
 
-Create a cover letter that:
-1. Opens with a strong hook
-2. Connects candidate's experience to the role
+Create a professional cover letter that:
+1. Opens with a strong hook showing genuine interest
+2. Connects candidate's experience to the role requirements
 3. Shows enthusiasm and cultural fit
-4. Highlights 2-3 key achievements
+4. Highlights 2-3 key achievements relevant to the position
 5. Closes with a clear call-to-action
 6. Is 250-300 words
+7. Uses plain text only - no markdown formatting
 
 Format:
 [Today's Date]
@@ -117,7 +115,9 @@ Dear Hiring Manager,
 [Closing paragraph]
 
 Sincerely,
-${userName}`
+${userName}
+
+Remember: Output plain text only. No asterisks, no underscores, no markdown symbols.`
 
     const coverLetterResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
