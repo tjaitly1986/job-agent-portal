@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic'
 
 type MessageType = 'linkedin' | 'email'
 type DocumentType = 'resume' | 'coverLetter'
-type ToneType = 'professional' | 'formal' | 'casual'
+type ToneType = 'professional' | 'enthusiastic' | 'conversational'
 
 export default function OutreachPage() {
   const { toast } = useToast()
@@ -286,21 +286,21 @@ export default function OutreachPage() {
                   </Button>
                   <Button
                     type="button"
-                    variant={messageTone === 'formal' ? 'default' : 'outline'}
+                    variant={messageTone === 'enthusiastic' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setMessageTone('formal')}
+                    onClick={() => setMessageTone('enthusiastic')}
                     className="w-full"
                   >
-                    Formal
+                    Enthusiastic
                   </Button>
                   <Button
                     type="button"
-                    variant={messageTone === 'casual' ? 'default' : 'outline'}
+                    variant={messageTone === 'conversational' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setMessageTone('casual')}
+                    onClick={() => setMessageTone('conversational')}
                     className="w-full"
                   >
-                    Casual
+                    Conversational
                   </Button>
                 </div>
               </div>

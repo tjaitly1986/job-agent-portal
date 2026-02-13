@@ -34,9 +34,9 @@ export async function POST(request: NextRequest) {
 
     // Tone descriptions
     const toneDescriptions: Record<string, string> = {
-      professional: 'professional and polished, using industry-standard language',
-      formal: 'formal and traditional, with proper business etiquette',
-      casual: 'friendly and approachable, while maintaining professionalism',
+      professional: 'professional and polished, using industry-standard language with a balanced approach',
+      enthusiastic: 'energetic and passionate, showing genuine excitement about the opportunity while remaining professional',
+      conversational: 'friendly and warm with natural dialogue, as if speaking to a colleague',
     }
 
     const toneDescription = toneDescriptions[tone] || toneDescriptions.professional
