@@ -12,7 +12,7 @@ interface JobStore {
 const defaultFilters: JobFilterParams = {
   limit: 50,
   offset: 0,
-  orderBy: 'postedAt',
+  orderBy: 'posted_at',
   orderDir: 'desc',
 }
 

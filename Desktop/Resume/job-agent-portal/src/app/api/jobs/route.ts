@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       offset: params.offset ? parseInt(params.offset) : undefined,
       minSalary: params.minSalary ? parseFloat(params.minSalary) : undefined,
       maxSalary: params.maxSalary ? parseFloat(params.maxSalary) : undefined,
-      isRemote: params.isRemote === 'true',
+      isRemote: params.isRemote ? params.isRemote === 'true' : undefined,
     })
 
     if (!validation.success) {
@@ -92,10 +92,19 @@ export async function GET(request: NextRequest) {
     // Execute query
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
+    // Map filter orderBy field (snake_case) to schema field (camelCase)
+    const orderByFieldMap = {
+      'posted_at': jobs.postedAt,
+      'created_at': jobs.createdAt,
+      'salary_max': jobs.salaryMax,
+    } as const
+
+    const orderByField = orderByFieldMap[filters.orderBy] || jobs.postedAt
+
     const orderByClause =
       filters.orderDir === 'asc'
-        ? asc(jobs[filters.orderBy])
-        : desc(jobs[filters.orderBy])
+        ? asc(orderByField)
+        : desc(orderByField)
 
     const results = await db
       .select()

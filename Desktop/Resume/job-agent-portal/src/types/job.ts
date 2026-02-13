@@ -4,7 +4,7 @@
 
 export type Platform = 'indeed' | 'dice' | 'glassdoor' | 'ziprecruiter' | 'linkedin'
 
-export type EmploymentType = 'full-time' | 'part-time' | 'contract' | 'c2c' | 'temporary' | 'internship'
+export type EmploymentType = 'full-time' | 'part-time' | 'contract' | 'c2c' | 'temporary' | 'contract-to-hire'
 
 export type SalaryType = 'hourly' | 'annual'
 
@@ -46,6 +46,6 @@ export interface JobFilterParams {
   postedBefore?: string
   limit?: number
   offset?: number
-  orderBy?: 'postedAt' | 'createdAt'
+  orderBy?: 'posted_at' | 'created_at' | 'salary_max'
   orderDir?: 'asc' | 'desc'
 }

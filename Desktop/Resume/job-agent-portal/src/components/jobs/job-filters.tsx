@@ -18,7 +18,7 @@ interface JobFiltersProps {
 }
 
 const platforms: Platform[] = ['indeed', 'dice', 'glassdoor', 'ziprecruiter', 'linkedin']
-const employmentTypes: EmploymentType[] = ['full-time', 'part-time', 'contract', 'c2c', 'temporary', 'internship']
+const employmentTypes: EmploymentType[] = ['full-time', 'part-time', 'contract', 'c2c', 'temporary', 'contract-to-hire']
 
 export function JobFilters({ filters, onChange, onReset }: JobFiltersProps) {
   const updateFilter = (key: keyof JobFilterParams, value: unknown) => {
