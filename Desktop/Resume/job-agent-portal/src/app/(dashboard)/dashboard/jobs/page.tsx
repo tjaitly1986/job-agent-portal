@@ -5,67 +5,73 @@ import { PageHeader } from '@/components/shared/page-header'
 import { JobGrid } from '@/components/jobs/job-grid'
 import { JobDetail } from '@/components/jobs/job-detail'
 import { useJobs, useJob } from '@/hooks/use-jobs'
+import { useProfiles } from '@/hooks/use-profiles'
 import { useJobStore } from '@/stores/job-store'
 import { useCreateApplication } from '@/hooks/use-tracker'
-import { Sparkles, Zap, Clock, List, X } from 'lucide-react'
+import { Sparkles, X, Plus, Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { Platform } from '@/types/job'
 
 export const dynamic = 'force-dynamic'
 
-type SmartView = 'top-matches' | 'urgent' | 'recent' | 'all'
+type PlatformFilter = 'all' | Platform
+
+const PLATFORMS: { value: PlatformFilter; label: string; color: string }[] = [
+  { value: 'all', label: 'All Platforms', color: 'default' },
+  { value: 'indeed', label: 'Indeed', color: 'blue' },
+  { value: 'dice', label: 'Dice', color: 'red' },
+  { value: 'linkedin', label: 'LinkedIn', color: 'blue' },
+  { value: 'glassdoor', label: 'Glassdoor', color: 'green' },
+  { value: 'ziprecruiter', label: 'ZipRecruiter', color: 'green' },
+]
 
 export default function JobsPage() {
   const { filters, setFilters, selectedJobId, setSelectedJobId } = useJobStore()
-  const { data: jobsData, isLoading } = useJobs(filters)
-  const { data: selectedJob } = useJob(selectedJobId)
-  const createApplication = useCreateApplication()
+  const { data: profilesData } = useProfiles()
+  const profiles = profilesData || []
 
   const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set())
-  const [activeView, setActiveView] = useState<SmartView>('top-matches')
+  const [activePlatform, setActivePlatform] = useState<PlatformFilter>('all')
+  const [activeProfileIds, setActiveProfileIds] = useState<Set<string>>(
+    new Set(profiles.filter(p => p.isActive).map(p => p.id))
+  )
+  const [showProfileSelector, setShowProfileSelector] = useState(false)
 
-  // Smart view filters
-  const filteredJobs = useMemo(() => {
-    const jobs = jobsData?.jobs || []
-    const now = new Date()
-
-    switch (activeView) {
-      case 'top-matches':
-        // Jobs with match score >= 70%, sorted by score
-        return jobs
-          .filter(job => (job.matchScore || 0) >= 70)
-          .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
-
-      case 'urgent':
-        // Jobs posted in last 6 hours with decent match (>60%)
-        return jobs
-          .filter(job => {
-            const postedDate = new Date(job.postedAt)
-            const hoursAgo = (now.getTime() - postedDate.getTime()) / (1000 * 60 * 60)
-            return hoursAgo < 6 && (job.matchScore || 0) >= 60
-          })
-          .sort((a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime())
-
-      case 'recent':
-        // All jobs posted in last 24 hours
-        return jobs
-          .filter(job => {
-            const postedDate = new Date(job.postedAt)
-            const hoursAgo = (now.getTime() - postedDate.getTime()) / (1000 * 60 * 60)
-            return hoursAgo < 24
-          })
-          .sort((a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime())
-
-      case 'all':
-        // All jobs, sorted by match score
-        return jobs.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
-
-      default:
-        return jobs
+  // Update filters when platform changes
+  const platformFilters = useMemo(() => {
+    return {
+      ...filters,
+      platform: activePlatform === 'all' ? undefined : activePlatform,
     }
-  }, [jobsData?.jobs, activeView])
+  }, [filters, activePlatform])
+
+  const { data: jobsData, isLoading } = useJobs(platformFilters)
+  const { data: selectedJob } = useJob(selectedJobId)
+
+  const createApplication = useCreateApplication()
+
+  // Jobs sorted by match score
+  const sortedJobs = useMemo(() => {
+    const jobs = jobsData?.jobs || []
+    return jobs.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
+  }, [jobsData?.jobs])
+
+  // Profile toggle handlers
+  const toggleProfile = (profileId: string) => {
+    const newActive = new Set(activeProfileIds)
+    if (newActive.has(profileId)) {
+      newActive.delete(profileId)
+    } else {
+      newActive.add(profileId)
+    }
+    setActiveProfileIds(newActive)
+  }
+
+  const activeProfiles = profiles.filter(p => activeProfileIds.has(p.id))
 
   const handleJobClick = (job: { id: string }) => {
     setSelectedJobId(job.id)
@@ -102,34 +108,101 @@ export default function JobsPage() {
     <div className="space-y-6">
       <PageHeader
         icon={Sparkles}
-        title="Smart Job Matches"
-        description="AI-powered job recommendations tailored to your profile"
+        title="Job Search"
+        description="Find jobs across all platforms with AI-powered matching"
       />
 
-      {/* Smart Views */}
-      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as SmartView)} className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
-          <TabsTrigger value="top-matches" className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4" />
-            Top Matches
-            {filteredJobs.filter(j => (j.matchScore || 0) >= 85).length > 0 && (
-              <Badge variant="default" className="ml-1 h-5 px-1.5 text-xs">
-                {filteredJobs.filter(j => (j.matchScore || 0) >= 85).length}
-              </Badge>
+      {/* Profile Filter Bar */}
+      <Card className="p-4">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Search Profiles:</span>
+
+          {/* Active Profile Chips */}
+          <div className="flex flex-wrap items-center gap-2">
+            {activeProfiles.length === 0 ? (
+              <span className="text-sm text-muted-foreground">No profiles selected</span>
+            ) : (
+              activeProfiles.map(profile => (
+                <Badge
+                  key={profile.id}
+                  variant="secondary"
+                  className="flex items-center gap-1 pr-1"
+                >
+                  {profile.name}
+                  <button
+                    onClick={() => toggleProfile(profile.id)}
+                    className="ml-1 rounded-sm hover:bg-muted"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))
             )}
-          </TabsTrigger>
-          <TabsTrigger value="urgent" className="flex items-center gap-2">
-            <Zap className="h-4 w-4" />
-            Urgent
-          </TabsTrigger>
-          <TabsTrigger value="recent" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Recent
-          </TabsTrigger>
-          <TabsTrigger value="all" className="flex items-center gap-2">
-            <List className="h-4 w-4" />
-            All Jobs
-          </TabsTrigger>
+
+            {/* Add Profile Button */}
+            {profiles.filter(p => !activeProfileIds.has(p.id)).length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowProfileSelector(!showProfileSelector)}
+                className="h-7"
+              >
+                <Plus className="mr-1 h-3 w-3" />
+                Add Profile
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Profile Selector Dropdown */}
+        {showProfileSelector && (
+          <div className="mt-3 border-t pt-3">
+            <div className="flex flex-wrap gap-2">
+              {profiles
+                .filter(p => !activeProfileIds.has(p.id))
+                .map(profile => (
+                  <Badge
+                    key={profile.id}
+                    variant="outline"
+                    className="cursor-pointer hover:bg-secondary"
+                    onClick={() => {
+                      toggleProfile(profile.id)
+                      setShowProfileSelector(false)
+                    }}
+                  >
+                    <Plus className="mr-1 h-3 w-3" />
+                    {profile.name}
+                  </Badge>
+                ))}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Platform Tabs */}
+      <Tabs value={activePlatform} onValueChange={(v) => setActivePlatform(v as PlatformFilter)} className="w-full">
+        <TabsList className="grid w-full grid-cols-6">
+          {PLATFORMS.map(platform => {
+            const count = platform.value === 'all'
+              ? jobsData?.total || 0
+              : sortedJobs.filter(j => j.platform === platform.value).length
+
+            return (
+              <TabsTrigger
+                key={platform.value}
+                value={platform.value}
+                className="flex items-center gap-2"
+              >
+                {platform.label}
+                {count > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                    {count}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )
+          })}
         </TabsList>
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -137,12 +210,12 @@ export default function JobsPage() {
           <div className={cn('lg:col-span-3', selectedJobId && 'lg:col-span-2')}>
             <div className="mb-4 flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                {filteredJobs.length} {activeView === 'top-matches' ? 'high-match' : activeView} jobs
+                {sortedJobs.length} jobs found
               </p>
             </div>
 
             <JobGrid
-              jobs={filteredJobs}
+              jobs={sortedJobs}
               isLoading={isLoading}
             onJobClick={handleJobClick}
             onJobSave={handleJobSave}

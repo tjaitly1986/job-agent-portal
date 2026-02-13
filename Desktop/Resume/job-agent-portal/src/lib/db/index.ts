@@ -31,7 +31,8 @@ function getSqliteConnection(): Database.Database {
     const dbPath = getDatabasePath()
 
     sqliteInstance = new Database(dbPath, {
-      verbose: process.env.NODE_ENV === 'development' ? console.error : undefined,
+      // Disable verbose logging to reduce console noise
+      verbose: undefined,
     })
 
     // Enable WAL mode for better concurrency
