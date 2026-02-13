@@ -278,7 +278,7 @@ export default function OutreachPage() {
                 <Label htmlFor="prerequisites">Prerequisites/Conditions (Optional)</Label>
                 <Textarea
                   id="prerequisites"
-                  placeholder="e.g., I am on E3 visa and can only do C2C CONTRACT roles"
+                  placeholder="You can mention your visa conditions or job type requirement"
                   value={prerequisites}
                   onChange={(e) => setPrerequisites(e.target.value)}
                   className="min-h-[80px] mt-2"
