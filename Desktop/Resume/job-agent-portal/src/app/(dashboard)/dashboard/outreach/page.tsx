@@ -32,6 +32,7 @@ export default function OutreachPage() {
   const [recruiterName, setRecruiterName] = useState('')
   const [company, setCompany] = useState('')
   const [jobTitle, setJobTitle] = useState('')
+  const [prerequisites, setPrerequisites] = useState('')
   const [messageTone, setMessageTone] = useState<ToneType>('professional')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isGeneratingDocs, setIsGeneratingDocs] = useState(false)
@@ -66,6 +67,7 @@ export default function OutreachPage() {
           recruiterName: recruiterName || 'Hiring Manager',
           company: company || 'the company',
           tone: messageTone,
+          prerequisites: prerequisites.trim() || undefined,
         }),
       })
 
@@ -270,6 +272,20 @@ export default function OutreachPage() {
                   onChange={(e) => setCompany(e.target.value)}
                   className="mt-2"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="prerequisites">Prerequisites/Conditions (Optional)</Label>
+                <Textarea
+                  id="prerequisites"
+                  placeholder="e.g., I am on E3 visa and can only do C2C CONTRACT roles"
+                  value={prerequisites}
+                  onChange={(e) => setPrerequisites(e.target.value)}
+                  className="min-h-[80px] mt-2"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Any special requirements or conditions to mention in messages (not included in resume/cover letter)
+                </p>
               </div>
 
               <div>
