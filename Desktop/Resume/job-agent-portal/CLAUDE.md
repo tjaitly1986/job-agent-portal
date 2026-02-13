@@ -60,6 +60,8 @@ job-agent-portal/
 │   │   │   │   └── page.tsx       # Application tracker (Kanban + table)
 │   │   │   ├── resumes/
 │   │   │   │   └── page.tsx       # Resume & cover letter management
+│   │   │   ├── outreach/
+│   │   │   │   └── page.tsx       # AI-powered recruiter outreach message generator
 │   │   │   ├── chat/
 │   │   │   │   └── page.tsx       # AI chatbot for outreach messages
 │   │   │   └── settings/
@@ -78,7 +80,14 @@ job-agent-portal/
 │   │       │   ├── route.ts       # Upload/list resumes
 │   │       │   └── parse/route.ts # Parse resume text extraction
 │   │       ├── chat/
-│   │       │   └── route.ts       # POST — Claude API streaming chat
+│   │       │   ├── route.ts            # POST — Claude API streaming chat
+│   │       │   └── generate-outreach/
+│   │       │       └── route.ts        # POST — Generate LinkedIn/email messages
+│   │       ├── documents/
+│   │       │   ├── generate/
+│   │       │   │   └── route.ts        # POST — Generate resume & cover letter (Word)
+│   │       │   └── convert-to-pdf/
+│   │       │       └── route.ts        # POST — Convert Word to PDF
 │   │       ├── scrapers/
 │   │       │   ├── trigger/route.ts   # POST — trigger scraping job
 │   │       │   └── status/route.ts    # GET — scraping job status
@@ -270,6 +279,52 @@ The chatbot uses the Anthropic Claude API to generate personalized outreach mess
 3. Email to recruiter (cold outreach)
 4. Email follow-up
 5. Custom message based on user prompt
+
+## Recruiter Outreach & Document Generation
+
+The Recruiter Outreach page (`/dashboard/outreach`) provides AI-powered tools to streamline job application process.
+
+**Features:**
+
+### 1. Outreach Message Generation
+- **LinkedIn Message:** 300-character connection request
+- **Email Message:** Professional cold outreach email with subject line
+- Both messages are personalized using the user's resume and job description
+- One-click copy to clipboard
+
+### 2. Resume & Cover Letter Generation
+- **AI-Generated Resume:** Tailored resume highlighting relevant skills/experience
+- **AI-Generated Cover Letter:** Personalized cover letter for the specific role
+- Both documents generated in Word (.docx) format
+- Uses Claude API to analyze job description and user's master resume
+- Documents are downloadable and editable
+
+**Implementation:**
+- API: `/api/documents/generate`
+- Libraries: `docx` (Word document creation), `@anthropic-ai/sdk`
+- Documents saved to: `public/uploads/generated/`
+
+### 3. Word to PDF Converter
+- Upload Word document (.docx)
+- Convert to PDF for smaller file size
+- Useful for email attachments and ATS systems
+- Two conversion methods:
+  1. **LibreOffice** (preferred, requires server installation)
+  2. **pdf-lib** (fallback, basic conversion)
+
+**Implementation:**
+- API: `/api/documents/convert-to-pdf`
+- Libraries: `pdf-lib`, `mammoth` (DOCX text extraction)
+- Converted files saved to: `public/uploads/conversions/`
+
+**Workflow:**
+1. User pastes job description
+2. Enters optional details (job title, company, recruiter name)
+3. Clicks "Messages" to generate LinkedIn/email outreach
+4. Clicks "Resume & CL" to generate customized documents
+5. Downloads Word documents, edits if needed
+6. Uses PDF converter to create final PDF versions
+7. Applies to job with tailored materials
 
 ## Key Conventions
 

@@ -14,6 +14,7 @@ import {
   Settings,
   Search,
   Home,
+  Mail,
 } from 'lucide-react'
 
 const navigation = [
@@ -22,6 +23,7 @@ const navigation = [
   { name: 'Search Profiles', href: '/dashboard/profiles', icon: UserCircle },
   { name: 'Application Tracker', href: '/dashboard/tracker', icon: ClipboardList },
   { name: 'Resumes', href: '/dashboard/resumes', icon: FileText },
+  { name: 'Recruiter Outreach', href: '/dashboard/outreach', icon: Mail },
   { name: 'AI Chat', href: '/dashboard/chat', icon: MessageSquare },
 ]
 

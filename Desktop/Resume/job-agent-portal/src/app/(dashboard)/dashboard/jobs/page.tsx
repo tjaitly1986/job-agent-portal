@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { PageHeader } from '@/components/shared/page-header'
 import { JobGrid } from '@/components/jobs/job-grid'
 import { JobDetail } from '@/components/jobs/job-detail'
@@ -8,11 +8,15 @@ import { useJobs, useJob } from '@/hooks/use-jobs'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useJobStore } from '@/stores/job-store'
 import { useCreateApplication } from '@/hooks/use-tracker'
-import { Sparkles, X, Plus, Filter } from 'lucide-react'
+import { Sparkles, Search, X, Loader2, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { Platform } from '@/types/job'
 
@@ -20,28 +24,42 @@ export const dynamic = 'force-dynamic'
 
 type PlatformFilter = 'all' | Platform
 
-const PLATFORMS: { value: PlatformFilter; label: string; color: string }[] = [
-  { value: 'all', label: 'All Platforms', color: 'default' },
-  { value: 'indeed', label: 'Indeed', color: 'blue' },
-  { value: 'dice', label: 'Dice', color: 'red' },
-  { value: 'linkedin', label: 'LinkedIn', color: 'blue' },
-  { value: 'glassdoor', label: 'Glassdoor', color: 'green' },
-  { value: 'ziprecruiter', label: 'ZipRecruiter', color: 'green' },
+const PLATFORMS: { value: PlatformFilter; label: string }[] = [
+  { value: 'all', label: 'All Platforms' },
+  { value: 'indeed', label: 'Indeed' },
+  { value: 'dice', label: 'Dice' },
+  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'glassdoor', label: 'Glassdoor' },
+  { value: 'ziprecruiter', label: 'ZipRecruiter' },
 ]
 
 export default function JobsPage() {
   const { filters, setFilters, selectedJobId, setSelectedJobId } = useJobStore()
   const { data: profilesData } = useProfiles()
   const profiles = profilesData || []
+  const { toast } = useToast()
 
-  const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set())
+  const [mainTab, setMainTab] = useState<'search' | 'results'>('search')
+  const [selectedProfileIds, setSelectedProfileIds] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
   const [activePlatform, setActivePlatform] = useState<PlatformFilter>('all')
-  const [activeProfileIds, setActiveProfileIds] = useState<Set<string>>(
-    new Set(profiles.filter(p => p.isActive).map(p => p.id))
-  )
-  const [showProfileSelector, setShowProfileSelector] = useState(false)
+  const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set())
+  const [hasSearched, setHasSearched] = useState(false)
 
-  // Update filters when platform changes
+  const createApplication = useCreateApplication()
+
+  // Auto-select active profiles on load
+  useEffect(() => {
+    if (profiles.length > 0 && selectedProfileIds.size === 0) {
+      const activeIds = profiles.filter(p => p.isActive).map(p => p.id)
+      if (activeIds.length > 0) {
+        setSelectedProfileIds(new Set(activeIds))
+      }
+    }
+  }, [profiles, selectedProfileIds.size])
+
+  // Platform filters for jobs
   const platformFilters = useMemo(() => {
     return {
       ...filters,
@@ -49,10 +67,8 @@ export default function JobsPage() {
     }
   }, [filters, activePlatform])
 
-  const { data: jobsData, isLoading } = useJobs(platformFilters)
+  const { data: jobsData, isLoading, refetch } = useJobs(platformFilters)
   const { data: selectedJob } = useJob(selectedJobId)
-
-  const createApplication = useCreateApplication()
 
   // Jobs sorted by match score
   const sortedJobs = useMemo(() => {
@@ -60,19 +76,77 @@ export default function JobsPage() {
     return jobs.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
   }, [jobsData?.jobs])
 
-  // Profile toggle handlers
-  const toggleProfile = (profileId: string) => {
-    const newActive = new Set(activeProfileIds)
-    if (newActive.has(profileId)) {
-      newActive.delete(profileId)
+  // Filter profiles by search query
+  const filteredProfiles = useMemo(() => {
+    if (!searchQuery) return profiles
+    return profiles.filter(p =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.domain?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.jobTitles.some(title => title.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
+  }, [profiles, searchQuery])
+
+  // Toggle profile selection
+  const toggleProfileSelection = (profileId: string) => {
+    const newSelected = new Set(selectedProfileIds)
+    if (newSelected.has(profileId)) {
+      newSelected.delete(profileId)
     } else {
-      newActive.add(profileId)
+      newSelected.add(profileId)
     }
-    setActiveProfileIds(newActive)
+    setSelectedProfileIds(newSelected)
   }
 
-  const activeProfiles = profiles.filter(p => activeProfileIds.has(p.id))
+  // Handle job search
+  const handleSearchJobs = async () => {
+    if (selectedProfileIds.size === 0) {
+      toast({
+        title: 'No profiles selected',
+        description: 'Please select at least one profile to search for jobs',
+        variant: 'destructive',
+      })
+      return
+    }
 
+    setIsSearching(true)
+    try {
+      // Trigger job scraping
+      const response = await fetch('/api/scrapers/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileIds: Array.from(selectedProfileIds),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to trigger job search')
+      }
+
+      const data = await response.json()
+
+      // Refetch jobs after scraping
+      await refetch()
+
+      setHasSearched(true)
+      setMainTab('results')
+
+      toast({
+        title: 'Job search completed',
+        description: `Found ${data.data?.totalJobs || 0} jobs across ${selectedProfileIds.size} profile(s)`,
+      })
+    } catch (error) {
+      toast({
+        title: 'Search failed',
+        description: 'Failed to search for jobs. Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // Job interaction handlers
   const handleJobClick = (job: { id: string }) => {
     setSelectedJobId(job.id)
   }
@@ -109,179 +183,266 @@ export default function JobsPage() {
       <PageHeader
         icon={Sparkles}
         title="Job Search"
-        description="Find jobs across all platforms with AI-powered matching"
+        description="Search for jobs across all platforms with AI-powered matching"
       />
 
-      {/* Profile Filter Bar */}
-      <Card className="p-4">
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Search Profiles:</span>
-
-          {/* Active Profile Chips */}
-          <div className="flex flex-wrap items-center gap-2">
-            {activeProfiles.length === 0 ? (
-              <span className="text-sm text-muted-foreground">No profiles selected</span>
-            ) : (
-              activeProfiles.map(profile => (
-                <Badge
-                  key={profile.id}
-                  variant="secondary"
-                  className="flex items-center gap-1 pr-1"
-                >
-                  {profile.name}
-                  <button
-                    onClick={() => toggleProfile(profile.id)}
-                    className="ml-1 rounded-sm hover:bg-muted"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))
+      {/* Main Tabs: Search vs Results */}
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as 'search' | 'results')} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="search" className="flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            Search Profiles
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+              {selectedProfileIds.size} selected
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="results" className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Job Results
+            {hasSearched && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {jobsData?.total || 0}
+              </Badge>
             )}
-
-            {/* Add Profile Button */}
-            {profiles.filter(p => !activeProfileIds.has(p.id)).length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowProfileSelector(!showProfileSelector)}
-                className="h-7"
-              >
-                <Plus className="mr-1 h-3 w-3" />
-                Add Profile
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Profile Selector Dropdown */}
-        {showProfileSelector && (
-          <div className="mt-3 border-t pt-3">
-            <div className="flex flex-wrap gap-2">
-              {profiles
-                .filter(p => !activeProfileIds.has(p.id))
-                .map(profile => (
-                  <Badge
-                    key={profile.id}
-                    variant="outline"
-                    className="cursor-pointer hover:bg-secondary"
-                    onClick={() => {
-                      toggleProfile(profile.id)
-                      setShowProfileSelector(false)
-                    }}
-                  >
-                    <Plus className="mr-1 h-3 w-3" />
-                    {profile.name}
-                  </Badge>
-                ))}
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* Platform Tabs */}
-      <Tabs value={activePlatform} onValueChange={(v) => setActivePlatform(v as PlatformFilter)} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
-          {PLATFORMS.map(platform => {
-            const count = platform.value === 'all'
-              ? jobsData?.total || 0
-              : sortedJobs.filter(j => j.platform === platform.value).length
-
-            return (
-              <TabsTrigger
-                key={platform.value}
-                value={platform.value}
-                className="flex items-center gap-2"
-              >
-                {platform.label}
-                {count > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                    {count}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            )
-          })}
+          </TabsTrigger>
         </TabsList>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* Job List */}
-          <div className={cn('lg:col-span-3', selectedJobId && 'lg:col-span-2')}>
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {sortedJobs.length} jobs found
-              </p>
-            </div>
-
-            <JobGrid
-              jobs={sortedJobs}
-              isLoading={isLoading}
-            onJobClick={handleJobClick}
-            onJobSave={handleJobSave}
-            savedJobIds={savedJobIds}
-          />
-
-          {/* Pagination */}
-          {jobsData && jobsData.total > jobsData.limit && (
-            <div className="mt-6 flex items-center justify-between">
-              <Button
-                variant="outline"
-                disabled={filters.offset === 0}
-                onClick={() =>
-                  setFilters({
-                    ...filters,
-                    offset: Math.max(0, (filters.offset || 0) - (filters.limit || 50)),
-                  })
-                }
-              >
-                Previous
-              </Button>
-              <p className="text-sm text-muted-foreground">
-                Showing {(filters.offset || 0) + 1} -{' '}
-                {Math.min((filters.offset || 0) + (filters.limit || 50), jobsData.total)} of{' '}
-                {jobsData.total}
-              </p>
-              <Button
-                variant="outline"
-                disabled={(filters.offset || 0) + (filters.limit || 50) >= jobsData.total}
-                onClick={() =>
-                  setFilters({
-                    ...filters,
-                    offset: (filters.offset || 0) + (filters.limit || 50),
-                  })
-                }
-              >
-                Next
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Job Detail Sidebar */}
-        {selectedJobId && selectedJob && (
-          <div className="lg:col-span-1">
-            <div className="sticky top-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Job Details</h2>
+        {/* Tab 1: Profile Search & Selection */}
+        {mainTab === 'search' && (
+          <div className="mt-6 space-y-4">
+            {/* Search Input */}
+            <Card className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Search profiles by name, domain, or job title..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSelectedJobId(null)}
+                  onClick={handleSearchJobs}
+                  disabled={isSearching || selectedProfileIds.size === 0}
+                  className="min-w-[140px]"
                 >
-                  <X className="h-4 w-4" />
+                  {isSearching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Searching...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="mr-2 h-4 w-4" />
+                      Search Jobs
+                    </>
+                  )}
                 </Button>
               </div>
-              <JobDetail
-                job={selectedJob}
-                onSave={() => handleJobSave(selectedJob)}
-                onTrack={handleTrackApplication}
-                isSaved={savedJobIds.has(selectedJob.id)}
-              />
-            </div>
+            </Card>
+
+            {/* Selected Profiles Summary */}
+            {selectedProfileIds.size > 0 && (
+              <Card className="p-4 bg-primary/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">
+                      {selectedProfileIds.size} {selectedProfileIds.size === 1 ? 'profile' : 'profiles'} selected
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedProfileIds(new Set())}
+                  >
+                    Clear All
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {/* Profile List */}
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Available Search Profiles</h3>
+              {profiles.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    No profiles found. Create a profile to start searching for jobs.
+                  </p>
+                  <Button onClick={() => window.location.href = '/dashboard/profiles'}>
+                    Create Profile
+                  </Button>
+                </div>
+              ) : filteredProfiles.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No profiles match your search query.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {filteredProfiles.map((profile) => (
+                    <Card
+                      key={profile.id}
+                      className={cn(
+                        'p-4 cursor-pointer transition-all hover:shadow-md',
+                        selectedProfileIds.has(profile.id) && 'border-primary bg-primary/5'
+                      )}
+                      onClick={() => toggleProfileSelection(profile.id)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          checked={selectedProfileIds.has(profile.id)}
+                          onCheckedChange={() => toggleProfileSelection(profile.id)}
+                          className="mt-1"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-semibold">{profile.name}</h4>
+                            {profile.isActive && (
+                              <Badge variant="default" className="h-5 text-xs">Active</Badge>
+                            )}
+                            {selectedProfileIds.has(profile.id) && (
+                              <Badge variant="secondary" className="h-5 text-xs">Selected</Badge>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                            <div>
+                              <span className="font-medium">Job Titles:</span> {profile.jobTitles.slice(0, 2).join(', ')}
+                              {profile.jobTitles.length > 2 && ` +${profile.jobTitles.length - 2} more`}
+                            </div>
+                            <div>
+                              <span className="font-medium">Domain:</span> {profile.domain || 'General'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Locations:</span> {profile.locations.slice(0, 2).join(', ')}
+                            </div>
+                            <div>
+                              <span className="font-medium">Platforms:</span> {profile.platforms.length} platforms
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </Card>
           </div>
         )}
-      </div>
+
+        {/* Tab 2: Job Results */}
+        {mainTab === 'results' && (
+          <div className="mt-6 space-y-4">
+            {!hasSearched ? (
+              <Card className="p-8 text-center">
+                <Search className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No search performed yet</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Select profiles and click "Search Jobs" to find matching opportunities
+                </p>
+                <Button onClick={() => setMainTab('search')}>
+                  Go to Search
+                </Button>
+              </Card>
+            ) : (
+              <>
+                {/* Platform Tabs */}
+                <Tabs value={activePlatform} onValueChange={(v) => setActivePlatform(v as PlatformFilter)}>
+                  <TabsList className="grid w-full grid-cols-6">
+                    {PLATFORMS.map((platform) => {
+                      const count =
+                        platform.value === 'all'
+                          ? jobsData?.total || 0
+                          : sortedJobs.filter((j) => j.platform === platform.value).length
+
+                      return (
+                        <TabsTrigger key={platform.value} value={platform.value} className="flex items-center gap-2">
+                          {platform.label}
+                          {count > 0 && (
+                            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                              {count}
+                            </Badge>
+                          )}
+                        </TabsTrigger>
+                      )
+                    })}
+                  </TabsList>
+                </Tabs>
+
+                {/* Job Grid */}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                  <div className={cn('lg:col-span-3', selectedJobId && 'lg:col-span-2')}>
+                    <div className="mb-4 flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground">{sortedJobs.length} jobs found</p>
+                    </div>
+
+                    <JobGrid
+                      jobs={sortedJobs}
+                      isLoading={isLoading}
+                      onJobClick={handleJobClick}
+                      onJobSave={handleJobSave}
+                      savedJobIds={savedJobIds}
+                    />
+
+                    {/* Pagination */}
+                    {jobsData && jobsData.total > jobsData.limit && (
+                      <div className="mt-6 flex items-center justify-between">
+                        <Button
+                          variant="outline"
+                          disabled={filters.offset === 0}
+                          onClick={() =>
+                            setFilters({
+                              ...filters,
+                              offset: Math.max(0, (filters.offset || 0) - (filters.limit || 50)),
+                            })
+                          }
+                        >
+                          Previous
+                        </Button>
+                        <p className="text-sm text-muted-foreground">
+                          Showing {(filters.offset || 0) + 1} -{' '}
+                          {Math.min((filters.offset || 0) + (filters.limit || 50), jobsData.total)} of {jobsData.total}
+                        </p>
+                        <Button
+                          variant="outline"
+                          disabled={(filters.offset || 0) + (filters.limit || 50) >= jobsData.total}
+                          onClick={() =>
+                            setFilters({
+                              ...filters,
+                              offset: (filters.offset || 0) + (filters.limit || 50),
+                            })
+                          }
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Job Detail Sidebar */}
+                  {selectedJobId && selectedJob && (
+                    <div className="lg:col-span-1">
+                      <div className="sticky top-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-lg font-semibold">Job Details</h2>
+                          <Button variant="ghost" size="icon" onClick={() => setSelectedJobId(null)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <JobDetail
+                          job={selectedJob}
+                          onSave={() => handleJobSave(selectedJob)}
+                          onTrack={handleTrackApplication}
+                          isSaved={savedJobIds.has(selectedJob.id)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </Tabs>
     </div>
   )
