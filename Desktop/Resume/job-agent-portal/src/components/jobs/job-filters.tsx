@@ -83,14 +83,14 @@ export function JobFilters({ filters, onChange, onReset }: JobFiltersProps) {
         <div className="space-y-2">
           <Label>Platform</Label>
           <Select
-            value={filters.platform}
-            onValueChange={(value) => updateFilter('platform', value)}
+            value={filters.platform || 'all'}
+            onValueChange={(value) => updateFilter('platform', value === 'all' ? '' : value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="All platforms" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All platforms</SelectItem>
+              <SelectItem value="all">All platforms</SelectItem>
               {platforms.map((platform) => (
                 <SelectItem key={platform} value={platform}>
                   {platform.charAt(0).toUpperCase() + platform.slice(1)}
@@ -106,14 +106,14 @@ export function JobFilters({ filters, onChange, onReset }: JobFiltersProps) {
         <div className="space-y-2">
           <Label>Employment Type</Label>
           <Select
-            value={filters.employmentType}
-            onValueChange={(value) => updateFilter('employmentType', value)}
+            value={filters.employmentType || 'all'}
+            onValueChange={(value) => updateFilter('employmentType', value === 'all' ? '' : value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="All types" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All types</SelectItem>
+              <SelectItem value="all">All types</SelectItem>
               {employmentTypes.map((type) => (
                 <SelectItem key={type} value={type}>
                   {type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
@@ -162,14 +162,14 @@ export function JobFilters({ filters, onChange, onReset }: JobFiltersProps) {
         <div className="space-y-2">
           <Label>Posted Within</Label>
           <Select
-            value={filters.postedAfter}
-            onValueChange={(value) => updateFilter('postedAfter', value)}
+            value={filters.postedAfter || 'all'}
+            onValueChange={(value) => updateFilter('postedAfter', value === 'all' ? '' : value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="All time" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All time</SelectItem>
+              <SelectItem value="all">All time</SelectItem>
               <SelectItem value={new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()}>
                 Last 24 hours
               </SelectItem>
