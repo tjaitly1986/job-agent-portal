@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authConfig } from '../auth/auth-config'
+import { auth } from '../auth'
 import { unauthorizedResponse } from './response'
 
 /**
@@ -9,7 +8,7 @@ import { unauthorizedResponse } from './response'
  */
 export async function getCurrentUserFromRequest(request: NextRequest) {
   try {
-    const session = await getServerSession(authConfig)
+    const session = await auth()
     return session?.user || null
   } catch (error) {
     console.error('Error getting session:', error)

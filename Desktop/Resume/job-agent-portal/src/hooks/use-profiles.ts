@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { SearchProfile, CreateProfileInput, UpdateProfileInput } from '@/types/profile'
-import { useToast } from '@/components/ui/use-toast'
+import { useToast } from '@/hooks/use-toast'
 
 const API_BASE = '/api'
 
