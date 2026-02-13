@@ -38,46 +38,10 @@ export async function POST(request: NextRequest) {
 
     const userName = user.name || 'Candidate'
 
-    // Generate resume content
-    const resumePrompt = `You are a professional resume writer. Tailor the candidate's resume to match the target job description while preserving the exact formatting, structure, and layout.
-
-CRITICAL INSTRUCTIONS:
-1. PRESERVE the exact format, structure, section order, and visual layout of the original resume
-2. Keep all bullet points, spacing, and organizational structure identical
-3. UPDATE the resume headline/title to match the target job title
-4. ANALYZE the job description and identify key required skills and keywords
-5. UPDATE the skills section to emphasize JD-relevant skills (keep existing skills but reorder/highlight relevant ones)
-6. ADD new relevant skills from the JD if they're legitimately related to the candidate's experience
-7. ENHANCE bullet points by adding relevant keywords from the JD where they naturally fit
-8. REORDER experience bullet points to put most relevant items first
-9. Keep the same level of detail and length - do not remove or significantly shorten content
-
-Master Resume:
-${user.resumeText}
-
-Target Job Description:
-${jobDescription}
-
-Target Job Title: ${jobTitle}
-Company: ${company}
-
-Tailoring Strategy:
-- Update resume headline to: "${jobTitle}" or similar role-specific title
-- Identify top 5-7 skills from JD and ensure they appear prominently in skills section
-- Add relevant JD keywords naturally into existing bullet points
-- Reorder experience bullets to lead with most relevant achievements
-- Maintain exact same formatting, spacing, and section structure
-
-Output the complete tailored resume with all original formatting preserved.`
-
-    const resumeResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: resumePrompt }],
-    })
-
-    const resumeContent =
-      resumeResponse.content[0].type === 'text' ? resumeResponse.content[0].text : ''
+    // Return original resume exactly as-is
+    // We cannot preserve Word document formatting when modifying text
+    // So we return the original resume unchanged
+    const resumeContent = user.resumeText
 
     // Generate cover letter content
     const coverLetterPrompt = `You are a professional cover letter writer. Create a compelling, personalized cover letter for this job application.
