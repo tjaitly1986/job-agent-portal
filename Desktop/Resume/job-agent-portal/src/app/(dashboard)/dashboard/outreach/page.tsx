@@ -284,7 +284,7 @@ export default function OutreachPage() {
                   className="min-h-[80px] mt-2"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Any special requirements or conditions to mention in messages (not included in resume/cover letter)
+                  You can mention your visa conditions or job type requirement (not included in resume/cover letter)
                 </p>
               </div>
 
