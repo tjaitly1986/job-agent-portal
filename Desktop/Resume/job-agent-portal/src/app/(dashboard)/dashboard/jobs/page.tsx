@@ -1,26 +1,71 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { PageHeader } from '@/components/shared/page-header'
 import { JobGrid } from '@/components/jobs/job-grid'
-import { JobFilters } from '@/components/jobs/job-filters'
 import { JobDetail } from '@/components/jobs/job-detail'
 import { useJobs, useJob } from '@/hooks/use-jobs'
 import { useJobStore } from '@/stores/job-store'
 import { useCreateApplication } from '@/hooks/use-tracker'
-import { Briefcase, X } from 'lucide-react'
+import { Sparkles, Zap, Clock, List, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
+type SmartView = 'top-matches' | 'urgent' | 'recent' | 'all'
+
 export default function JobsPage() {
-  const { filters, setFilters, resetFilters, selectedJobId, setSelectedJobId } = useJobStore()
+  const { filters, setFilters, selectedJobId, setSelectedJobId } = useJobStore()
   const { data: jobsData, isLoading } = useJobs(filters)
   const { data: selectedJob } = useJob(selectedJobId)
   const createApplication = useCreateApplication()
 
   const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set())
+  const [activeView, setActiveView] = useState<SmartView>('top-matches')
+
+  // Smart view filters
+  const filteredJobs = useMemo(() => {
+    const jobs = jobsData?.jobs || []
+    const now = new Date()
+
+    switch (activeView) {
+      case 'top-matches':
+        // Jobs with match score >= 70%, sorted by score
+        return jobs
+          .filter(job => (job.matchScore || 0) >= 70)
+          .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
+
+      case 'urgent':
+        // Jobs posted in last 6 hours with decent match (>60%)
+        return jobs
+          .filter(job => {
+            const postedDate = new Date(job.postedAt)
+            const hoursAgo = (now.getTime() - postedDate.getTime()) / (1000 * 60 * 60)
+            return hoursAgo < 6 && (job.matchScore || 0) >= 60
+          })
+          .sort((a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime())
+
+      case 'recent':
+        // All jobs posted in last 24 hours
+        return jobs
+          .filter(job => {
+            const postedDate = new Date(job.postedAt)
+            const hoursAgo = (now.getTime() - postedDate.getTime()) / (1000 * 60 * 60)
+            return hoursAgo < 24
+          })
+          .sort((a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime())
+
+      case 'all':
+        // All jobs, sorted by match score
+        return jobs.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
+
+      default:
+        return jobs
+    }
+  }, [jobsData?.jobs, activeView])
 
   const handleJobClick = (job: { id: string }) => {
     setSelectedJobId(job.id)
@@ -56,28 +101,49 @@ export default function JobsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        icon={Briefcase}
-        title="Job Listings"
-        description="Browse and filter job opportunities from multiple platforms"
+        icon={Sparkles}
+        title="Smart Job Matches"
+        description="AI-powered job recommendations tailored to your profile"
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        {/* Filters Sidebar */}
-        <div className="lg:col-span-1">
-          <JobFilters filters={filters} onChange={setFilters} onReset={resetFilters} />
-        </div>
+      {/* Smart Views */}
+      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as SmartView)} className="w-full">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+          <TabsTrigger value="top-matches" className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Top Matches
+            {filteredJobs.filter(j => (j.matchScore || 0) >= 85).length > 0 && (
+              <Badge variant="default" className="ml-1 h-5 px-1.5 text-xs">
+                {filteredJobs.filter(j => (j.matchScore || 0) >= 85).length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="urgent" className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            Urgent
+          </TabsTrigger>
+          <TabsTrigger value="recent" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Recent
+          </TabsTrigger>
+          <TabsTrigger value="all" className="flex items-center gap-2">
+            <List className="h-4 w-4" />
+            All Jobs
+          </TabsTrigger>
+        </TabsList>
 
-        {/* Job List */}
-        <div className={cn('lg:col-span-3', selectedJobId && 'lg:col-span-2')}>
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              {jobsData?.total ? `${jobsData.total} jobs found` : 'Loading...'}
-            </p>
-          </div>
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {/* Job List */}
+          <div className={cn('lg:col-span-3', selectedJobId && 'lg:col-span-2')}>
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                {filteredJobs.length} {activeView === 'top-matches' ? 'high-match' : activeView} jobs
+              </p>
+            </div>
 
-          <JobGrid
-            jobs={jobsData?.jobs || []}
-            isLoading={isLoading}
+            <JobGrid
+              jobs={filteredJobs}
+              isLoading={isLoading}
             onJobClick={handleJobClick}
             onJobSave={handleJobSave}
             savedJobIds={savedJobIds}
@@ -143,6 +209,7 @@ export default function JobsPage() {
           </div>
         )}
       </div>
+      </Tabs>
     </div>
   )
 }
