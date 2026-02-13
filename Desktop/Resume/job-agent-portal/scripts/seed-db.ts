@@ -137,7 +137,7 @@ Requirements:
         requirements: 'Python, TensorFlow, AWS, 8+ years experience',
         postedAt: yesterday.toISOString(),
         postedAtRaw: '1 day ago',
-        applyUrl: 'https://indeed.com/viewjob?jk=12345',
+        applyUrl: 'https://www.indeed.com/jobs?q=AI+Solution+Architect&l=San+Francisco%2C+CA',
         sourceUrl: 'https://indeed.com/q-ai-solution-architect-l-san-francisco-jobs.html',
       },
       {
@@ -172,7 +172,7 @@ Must Have:
         requirements: 'Python, ML, 5+ years, C2C',
         postedAt: now.toISOString(),
         postedAtRaw: 'Just posted',
-        applyUrl: 'https://dice.com/jobs/detail/67890',
+        applyUrl: 'https://www.dice.com/jobs?q=Machine+Learning+Engineer&location=Remote',
         sourceUrl: 'https://dice.com/jobs?q=machine+learning',
       },
       {
@@ -206,7 +206,7 @@ Requirements:
         requirements: 'Deep learning, Leadership, 10+ years',
         postedAt: twoDaysAgo.toISOString(),
         postedAtRaw: '2 days ago',
-        applyUrl: 'https://linkedin.com/jobs/view/abc123',
+        applyUrl: 'https://www.linkedin.com/jobs/search/?keywords=Senior%20AI%20Architect&location=Remote',
         sourceUrl: 'https://linkedin.com/jobs/search/?keywords=ai%20architect',
       },
     ])
