@@ -25,13 +25,6 @@ export async function POST(request: NextRequest) {
       return badRequestResponse('Job description is required')
     }
 
-    // Get user's resume text for personalization
-    const [user] = await db.select().from(users).where(eq(users.id, userId))
-
-    const resumeContext = user?.resumeText
-      ? `\n\nCandidate's Resume:\n${user.resumeText.substring(0, 2000)}`
-      : ''
-
     // Tone descriptions
     const toneDescriptions: Record<string, string> = {
       professional: 'professional and polished, using industry-standard language with a balanced approach',
@@ -42,23 +35,23 @@ export async function POST(request: NextRequest) {
     const toneDescription = toneDescriptions[tone] || toneDescriptions.professional
 
     // Generate LinkedIn message (300 char limit)
-    const linkedinPrompt = `You are a professional career coach helping a job seeker craft a personalized LinkedIn connection request to a recruiter.
+    const linkedinPrompt = `You are a professional career coach helping a job seeker craft a LinkedIn connection request to a recruiter.
 
 Job Description:
 ${jobDescription}
 
 Recruiter Name: ${recruiterName || 'Hiring Manager'}
 Company: ${company || 'the company'}
-${resumeContext}
 
 Generate a concise LinkedIn connection request message that:
 1. Is EXACTLY 300 characters or less (this is a hard limit)
-2. Mentions the specific role
-3. Highlights 1-2 relevant skills or experiences
-4. Shows genuine interest
+2. Mentions the specific role from the job description
+3. Expresses genuine interest in the opportunity
+4. Is warm and professional
 5. Uses a ${toneDescription} tone
+6. Does NOT make claims about specific qualifications (keep it general)
 
-Output ONLY the message text, nothing else.`
+Output ONLY the message text, nothing else. Do not refuse or explain - just generate the message.`
 
     const linkedinResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
@@ -77,22 +70,23 @@ Output ONLY the message text, nothing else.`
         : ''
 
     // Generate Email message
-    const emailPrompt = `You are a professional career coach helping a job seeker craft a personalized email to a recruiter.
+    const emailPrompt = `You are a professional career coach helping a job seeker craft a cold outreach email to a recruiter.
 
 Job Description:
 ${jobDescription}
 
 Recruiter Name: ${recruiterName || 'Hiring Manager'}
 Company: ${company || 'the company'}
-${resumeContext}
 
-Generate an email message that:
+Generate a professional cold outreach email that:
 1. Has a compelling subject line
-2. Is concise (250-300 words max)
-3. Highlights 2-3 key qualifications that match the role
-4. Shows enthusiasm and cultural fit
-5. Includes a clear call-to-action
+2. Is concise (200-250 words max)
+3. Expresses genuine interest in the role and company
+4. Mentions what attracted them to the opportunity (based on job description)
+5. Includes a clear call-to-action (e.g., "Would love to learn more")
 6. Uses a ${toneDescription} tone
+7. Does NOT make specific qualification claims (keep it general and interest-focused)
+8. Ends with requesting a conversation or next steps
 
 Format:
 Subject: [subject line]
@@ -100,7 +94,9 @@ Subject: [subject line]
 [email body]
 
 Best regards,
-[Candidate Name]`
+[Your Name]
+
+Do not refuse or explain - just generate the email. Focus on expressing interest, not proving qualifications.`
 
     const emailResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
