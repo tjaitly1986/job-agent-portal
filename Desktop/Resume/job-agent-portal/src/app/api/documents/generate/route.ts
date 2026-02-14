@@ -137,6 +137,72 @@ function isBold(rPr: string): boolean {
 }
 
 /**
+ * Remove bold formatting from run properties XML
+ */
+function stripBold(rPr: string): string {
+  return rPr
+    .replace(/<w:b\/>/g, '')
+    .replace(/<w:b [^/]*\/>/g, '')
+    .replace(/<w:b>[\s\S]*?<\/w:b>/g, '')
+}
+
+/**
+ * Add bold formatting to run properties XML if not already present
+ */
+function ensureBold(rPr: string): string {
+  if (isBold(rPr)) return rPr
+  if (rPr.includes('</w:rPr>')) {
+    return rPr.replace('</w:rPr>', '<w:b/></w:rPr>')
+  }
+  if (rPr === '') {
+    return '<w:rPr><w:b/></w:rPr>'
+  }
+  return rPr
+}
+
+/**
+ * Check if text looks like a section heading (not body/bullet text)
+ */
+function isHeadingText(text: string): boolean {
+  const trimmed = text.trim()
+  if (trimmed.length === 0) return false
+  // All caps and short = heading
+  if (trimmed === trimmed.toUpperCase() && trimmed.length < 80 && /[A-Z]/.test(trimmed)) return true
+  // Known section headings
+  const headings = [
+    'summary', 'experience', 'education', 'skills', 'technical skills',
+    'certifications', 'projects', 'achievements', 'professional experience',
+    'work experience', 'core competencies', 'professional summary',
+    'executive summary', 'contact', 'contact information', 'references',
+  ]
+  const normalized = trimmed.toLowerCase().replace(/[:\s]/g, '')
+  if (headings.some((h) => normalized === h.replace(/\s/g, ''))) return true
+  // Sub-headings: short text ending with colon, no commas (not a skill line)
+  if (trimmed.endsWith(':') && trimmed.length < 70 && !trimmed.includes(',') && /^[A-Z]/.test(trimmed)) return true
+  // Client/Role lines in experience sections
+  if (/^(Client|Role|Description):/.test(trimmed)) return true
+  return false
+}
+
+/**
+ * Check if text looks like a "Label: comma-separated values" skill line
+ */
+function isSkillLine(text: string): boolean {
+  if (!text.includes(':')) return false
+  const colonIdx = text.indexOf(':')
+  const label = text.substring(0, colonIdx).trim()
+  const value = text.substring(colonIdx + 1).trim()
+  // Label is short, starts with uppercase, value is longer than label and has commas
+  return (
+    label.length > 2 &&
+    label.length < 60 &&
+    /^[A-Z]/.test(label) &&
+    value.length > label.length &&
+    value.includes(',')
+  )
+}
+
+/**
  * Replace text content within a paragraph XML while preserving formatting.
  * Handles three patterns:
  * 1. Tab-delimited paragraphs (e.g., "Bold Label\t: normal values")
@@ -154,22 +220,25 @@ function replaceParagraphText(paraXml: string, newText: string): string {
 
   // Extract all runs from the paragraph
   const runRegex = /<w:r[\s>][\s\S]*?<\/w:r>/g
-  const runs: Array<{ xml: string; rPr: string; hasTab: boolean; hasBold: boolean }> = []
+  const runs: Array<{ xml: string; rPr: string; hasTab: boolean; hasBold: boolean; text: string }> = []
   let runMatch
   while ((runMatch = runRegex.exec(paraXml)) !== null) {
     const xml = runMatch[0]
     const rPr = extractRunProps(xml)
+    const textMatch = xml.match(/<w:t[^>]*>([^<]*)<\/w:t>/)
     runs.push({
       xml,
       rPr,
       hasTab: xml.includes('<w:tab/>'),
       hasBold: isBold(rPr),
+      text: textMatch ? textMatch[1] : '',
     })
   }
 
   const hasTabs = runs.some((r) => r.hasTab)
   const firstRPr = runs[0]?.rPr || ''
-  const lastRPr = runs[runs.length - 1]?.rPr || ''
+  const anyBoldRun = runs.find((r) => r.hasBold)
+  const anyNonBoldRun = runs.find((r) => !r.hasBold && !r.hasTab && r.text.trim().length > 0)
 
   // Pattern 1: Tab-delimited paragraph (skill lines: "Bold Label\t: values")
   if (hasTabs) {
@@ -178,9 +247,14 @@ function replaceParagraphText(paraXml: string, newText: string): string {
       const label = newText.substring(0, colonIdx).trim()
       const value = newText.substring(colonIdx + 1).trim()
 
-      // Use first run's formatting for label (usually bold), last run's for value
-      const labelRPr = firstRPr
-      const valueRPr = runs.find((r) => !r.hasTab && !r.hasBold)?.rPr || lastRPr
+      // Find bold formatting from any bold run (prefer runs before the tab)
+      const tabIdx = runs.findIndex((r) => r.hasTab)
+      const boldBeforeTab = runs.slice(0, tabIdx >= 0 ? tabIdx : undefined).find((r) => r.hasBold)
+      const labelRPr = boldBeforeTab?.rPr || anyBoldRun?.rPr || firstRPr
+
+      // Find non-bold formatting (prefer runs after the tab)
+      const nonBoldAfterTab = runs.slice(tabIdx >= 0 ? tabIdx + 1 : 0).find((r) => !r.hasBold && !r.hasTab)
+      const valueRPr = nonBoldAfterTab?.rPr || anyNonBoldRun?.rPr || stripBold(labelRPr)
 
       return `${pOpen}${pPr}<w:r>${labelRPr}<w:t xml:space="preserve">${escapeXml(label)}</w:t></w:r><w:r>${labelRPr}<w:tab/><w:t xml:space="preserve">: </w:t></w:r><w:r>${valueRPr}<w:t xml:space="preserve">${escapeXml(value)}</w:t></w:r></w:p>`
     }
@@ -190,26 +264,51 @@ function replaceParagraphText(paraXml: string, newText: string): string {
   }
 
   // Pattern 2: Mixed bold/normal without tabs (e.g., "Bold Label: normal values")
-  const hasFirstBold = runs.length > 1 && runs[0]?.hasBold
+  const hasAnyBold = runs.some((r) => r.hasBold)
   const hasNonBoldLater = runs.some((r, i) => i > 0 && !r.hasBold && !r.hasTab)
 
-  if (hasFirstBold && hasNonBoldLater) {
-    if (newText.includes(':')) {
-      const colonIdx = newText.indexOf(':')
-      const label = newText.substring(0, colonIdx + 1).trim()
-      const value = newText.substring(colonIdx + 1).trim()
+  if (hasAnyBold && hasNonBoldLater && newText.includes(':')) {
+    const colonIdx = newText.indexOf(':')
+    const label = newText.substring(0, colonIdx + 1).trim()
+    const value = newText.substring(colonIdx + 1).trim()
 
-      const boldRPr = firstRPr
-      const normalRPr = runs.find((r) => !r.hasBold)?.rPr || lastRPr
+    const boldRPr = anyBoldRun?.rPr || firstRPr
+    const normalRPr = anyNonBoldRun?.rPr || stripBold(boldRPr)
 
-      return `${pOpen}${pPr}<w:r>${boldRPr}<w:t xml:space="preserve">${escapeXml(label)} </w:t></w:r><w:r>${normalRPr}<w:t xml:space="preserve">${escapeXml(value)}</w:t></w:r></w:p>`
-    }
-    // Mixed bold/normal paragraph but new text has no colon — keep original
-    return paraXml
+    return `${pOpen}${pPr}<w:r>${boldRPr}<w:t xml:space="preserve">${escapeXml(label)} </w:t></w:r><w:r>${normalRPr}<w:t xml:space="preserve">${escapeXml(value)}</w:t></w:r></w:p>`
   }
 
-  // Pattern 3: Simple paragraph — use first run's formatting for all text
-  return `${pOpen}${pPr}<w:r>${firstRPr}<w:t xml:space="preserve">${escapeXml(newText)}</w:t></w:r></w:p>`
+  // Pattern 2.5: New text looks like a skill line ("Label: comma,values")
+  // but original paragraph wasn't tab-delimited or mixed — still format as label:value
+  // Use existing bold runs if available, otherwise inject bold into the run properties
+  if (isSkillLine(newText)) {
+    const colonIdx = newText.indexOf(':')
+    const label = newText.substring(0, colonIdx + 1).trim()
+    const value = newText.substring(colonIdx + 1).trim()
+
+    const boldRPr = anyBoldRun?.rPr || ensureBold(firstRPr)
+    const normalRPr = anyNonBoldRun?.rPr || stripBold(boldRPr)
+
+    return `${pOpen}${pPr}<w:r>${boldRPr}<w:t xml:space="preserve">${escapeXml(label)} </w:t></w:r><w:r>${normalRPr}<w:t xml:space="preserve">${escapeXml(value)}</w:t></w:r></w:p>`
+  }
+
+  // Pattern 3: Simple paragraph — smart bold handling
+  let rPr = firstRPr
+  const newIsHeading = isHeadingText(newText)
+
+  if (isBold(firstRPr) && !newIsHeading) {
+    // Original first run was bold but new text is body text — strip bold
+    // This prevents bold from "leaking" onto bullet points when
+    // positional mapping aligns a body line to a bold heading paragraph.
+    rPr = stripBold(firstRPr)
+  } else if (!isBold(firstRPr) && newIsHeading) {
+    // Original wasn't bold but new text is a sub-heading — add bold
+    // This fixes sub-headings like "AI System Architecture:" getting
+    // mapped to non-bold paragraphs due to positional misalignment.
+    rPr = ensureBold(firstRPr)
+  }
+
+  return `${pOpen}${pPr}<w:r>${rPr}<w:t xml:space="preserve">${escapeXml(newText)}</w:t></w:r></w:p>`
 }
 
 /**
