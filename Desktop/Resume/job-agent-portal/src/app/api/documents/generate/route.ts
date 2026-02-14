@@ -313,100 +313,73 @@ export async function POST(request: NextRequest) {
     const { text: originalResumeText, name: userName } = resumeData
 
     // Use AI to tailor the resume for the job description
-    const resumeTailoringPrompt = `You are a professional resume writer. Your task is to tailor the candidate's existing resume for a specific job description.
-
-CRITICAL RULES:
-1. PRESERVE THE EXACT STRUCTURE AND FORMAT of the original resume - same sections, same order, same layout pattern
-2. Do NOT remove any sections from the original resume
-3. Do NOT change the candidate's name, contact information, education dates, company names, or job titles
-4. Do NOT invent or fabricate any experience, companies, degrees, or certifications the candidate does not have
-5. Do NOT use any markdown formatting (no **, no __, no #, no italics markers)
-6. Output PLAIN TEXT ONLY - the output will be formatted as a Word document
-7. Keep the same length as the original resume (do not shorten it significantly)
-
-WHAT YOU SHOULD DO:
-1. Read the job description carefully and identify key skills, technologies, and requirements
-2. Review the candidate's existing resume and identify where relevant skills already exist
-3. Enhance bullet points to better highlight skills that match the job description
-4. Add relevant keywords from the JD naturally into existing bullet points where truthful
-5. Adjust the professional summary/objective to align with the target role
-6. Reorder bullet points within each role to prioritize the most relevant accomplishments first
-7. If the candidate has skills matching the JD that aren't prominently featured, make them more visible
-8. Ensure technical skills section includes relevant technologies mentioned in both the resume and JD
-
-ORIGINAL RESUME:
-${originalResumeText}
-
-JOB DESCRIPTION:
-${jobDescription}
-
-Job Title: ${jobTitle || 'the position'}
-Company: ${company || 'the company'}
-
-Now output the tailored resume. Preserve the EXACT same structure, sections, and formatting pattern as the original. Only modify content within the existing structure to better align with the job description. Output plain text only.`
-
     const resumeResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4000,
-      messages: [{ role: 'user', content: resumeTailoringPrompt }],
+      system: `You are an automated resume tailoring tool. You receive a resume and a job description, and you output ONLY the tailored resume text.
+
+ABSOLUTE RULES — NEVER VIOLATE:
+- You MUST ALWAYS output a tailored resume. You are a tool, not an advisor.
+- NEVER refuse. NEVER add commentary, explanations, ethical concerns, or meta-discussion.
+- NEVER say "I cannot", "I appreciate", "Here's why", or similar phrases.
+- Your ENTIRE output must be the resume content and nothing else.
+- Do NOT wrap output in code blocks, quotes, or markdown.
+- Do NOT use any markdown formatting (no **, no __, no #, no italics markers).
+- Output PLAIN TEXT ONLY.
+
+TAILORING RULES:
+- PRESERVE the exact structure, sections, and order of the original resume.
+- Do NOT remove any sections.
+- Do NOT change the candidate's name, contact info, education dates, company names, or job titles.
+- Do NOT fabricate experience, companies, degrees, or certifications.
+- Enhance bullet points to highlight skills matching the job description.
+- Add relevant keywords from the JD naturally into existing bullet points where truthful.
+- Adjust the professional summary/objective to align with the target role.
+- Reorder bullets within each role to prioritize relevant accomplishments.
+- Keep the same approximate length as the original resume.
+- If the resume and job description are in very different fields, still tailor by emphasizing transferable skills, relevant methodologies, and applicable experience.`,
+      messages: [
+        {
+          role: 'user',
+          content: `ORIGINAL RESUME:\n${originalResumeText}\n\nJOB DESCRIPTION:\n${jobDescription}\n\nJob Title: ${jobTitle || 'the position'}\nCompany: ${company || 'the company'}\n\nOutput the tailored resume now.`,
+        },
+        {
+          role: 'assistant',
+          content: originalResumeText.split('\n')[0].trim() || userName.toUpperCase(),
+        },
+      ],
     })
 
-    const tailoredResumeContent =
-      resumeResponse.content[0].type === 'text' ? resumeResponse.content[0].text : originalResumeText
+    // The assistant prefill starts with the first line of the resume, so prepend it
+    const prefillLine = originalResumeText.split('\n')[0].trim() || userName.toUpperCase()
+    const aiOutput = resumeResponse.content[0].type === 'text' ? resumeResponse.content[0].text : ''
+    const tailoredResumeContent = aiOutput ? `${prefillLine}\n${aiOutput}` : originalResumeText
 
     // Generate cover letter content
-    const coverLetterPrompt = `You are a professional cover letter writer. Create a compelling, personalized cover letter for this job application.
-
-CRITICAL FORMATTING INSTRUCTIONS:
-- Do NOT use any markdown formatting (no **, no __, no italics markers)
-- Write in plain text only
-- Do not include any special formatting symbols
-- The output will be formatted as a Word document
-
-Candidate Resume:
-${originalResumeText}
-
-Job Description:
-${jobDescription}
-
-Job Title: ${jobTitle}
-Company: ${company}
-
-Create a professional cover letter that:
-1. Opens with a strong hook showing genuine interest
-2. Connects candidate's experience to the role requirements
-3. Shows enthusiasm and cultural fit
-4. Highlights 2-3 key achievements relevant to the position
-5. Closes with a clear call-to-action
-6. Is 250-300 words
-7. Uses plain text only - no markdown formatting
-
-Format:
-[Today's Date]
-
-Dear Hiring Manager,
-
-[Opening paragraph]
-
-[Body paragraph 1]
-
-[Body paragraph 2]
-
-[Closing paragraph]
-
-Sincerely,
-${userName}
-
-Remember: Output plain text only. No asterisks, no underscores, no markdown symbols.`
+    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
     const coverLetterResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1500,
-      messages: [{ role: 'user', content: coverLetterPrompt }],
+      system: `You are an automated cover letter generator. You output ONLY the cover letter text.
+NEVER refuse. NEVER add commentary or explanations. Your entire output is the cover letter.
+Do NOT use markdown formatting. Output plain text only.
+The cover letter should be 250-300 words, professional, and connect the candidate's experience to the role.`,
+      messages: [
+        {
+          role: 'user',
+          content: `Candidate Resume:\n${originalResumeText}\n\nJob Description:\n${jobDescription}\n\nJob Title: ${jobTitle || 'the position'}\nCompany: ${company || 'the company'}\nCandidate Name: ${userName}\n\nWrite the cover letter now.`,
+        },
+        {
+          role: 'assistant',
+          content: `${today}\n\nDear Hiring Manager,\n\n`,
+        },
+      ],
     })
 
-    const coverLetterContent =
+    const coverLetterAiOutput =
       coverLetterResponse.content[0].type === 'text' ? coverLetterResponse.content[0].text : ''
+    const coverLetterContent = `${today}\n\nDear Hiring Manager,\n\n${coverLetterAiOutput}\n\nSincerely,\n${userName}`
 
     // Create Word documents
     const uploadsDir = join(process.cwd(), 'public', 'uploads', 'generated')
