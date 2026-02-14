@@ -17,6 +17,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Mail, Linkedin, Loader2, Copy, CheckCircle2, FileText, Upload, Download } from 'lucide-react'
+import { useCreateOutreachRecord, useUpdateOutreachRecord } from '@/hooks/use-outreach'
+import { OutreachHistory } from '@/components/outreach/outreach-history'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +28,8 @@ type ToneType = 'professional' | 'enthusiastic' | 'conversational'
 
 export default function OutreachPage() {
   const { toast } = useToast()
+  const createRecord = useCreateOutreachRecord()
+  const updateRecord = useUpdateOutreachRecord()
 
   const [jobDescription, setJobDescription] = useState('')
   const [recruiterName, setRecruiterName] = useState('')
@@ -45,6 +49,7 @@ export default function OutreachPage() {
   const [convertedPdfUrl, setConvertedPdfUrl] = useState('')
   const [showResumeDialog, setShowResumeDialog] = useState(false)
   const [customResumeFile, setCustomResumeFile] = useState<File | null>(null)
+  const [currentRecordId, setCurrentRecordId] = useState<string | null>(null)
 
   const handleGenerate = async () => {
     if (!jobDescription.trim()) {
@@ -77,6 +82,23 @@ export default function OutreachPage() {
       const data = await response.json()
       setLinkedinMessage(data.data.linkedinMessage)
       setEmailMessage(data.data.emailMessage)
+
+      // Auto-save outreach record
+      try {
+        const saved = await createRecord.mutateAsync({
+          jobDescription,
+          jobTitle: jobTitle || undefined,
+          company: company || undefined,
+          recruiterName: recruiterName || undefined,
+          prerequisites: prerequisites.trim() || undefined,
+          tone: messageTone,
+          linkedinMessage: data.data.linkedinMessage,
+          emailMessage: data.data.emailMessage,
+        })
+        setCurrentRecordId(saved.id)
+      } catch {
+        // Silent fail — messages still shown to user
+      }
 
       toast({
         title: 'Messages generated',
@@ -137,6 +159,33 @@ export default function OutreachPage() {
       const data = await response.json()
       setResumeUrl(data.data.resumeUrl)
       setCoverLetterUrl(data.data.coverLetterUrl)
+
+      // Save document URLs to outreach record
+      try {
+        if (currentRecordId) {
+          await updateRecord.mutateAsync({
+            id: currentRecordId,
+            input: {
+              resumeUrl: data.data.resumeUrl,
+              coverLetterUrl: data.data.coverLetterUrl,
+            },
+          })
+        } else {
+          const saved = await createRecord.mutateAsync({
+            jobDescription,
+            jobTitle: jobTitle || undefined,
+            company: company || undefined,
+            recruiterName: recruiterName || undefined,
+            prerequisites: prerequisites.trim() || undefined,
+            tone: messageTone,
+            resumeUrl: data.data.resumeUrl,
+            coverLetterUrl: data.data.coverLetterUrl,
+          })
+          setCurrentRecordId(saved.id)
+        }
+      } catch {
+        // Silent fail — documents still available for download
+      }
 
       toast({
         title: 'Documents generated',
@@ -558,6 +607,9 @@ export default function OutreachPage() {
           </Card>
         </div>
       </div>
+
+      {/* Outreach History */}
+      <OutreachHistory />
 
       {/* Resume Selection Dialog */}
       <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>

@@ -340,6 +340,38 @@ export const chatMessages = sqliteTable(
 )
 
 // ============================================================================
+// OUTREACH RECORDS
+// ============================================================================
+
+export const outreachRecords = sqliteTable(
+  'outreach_records',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    jobDescription: text('job_description').notNull(),
+    jobTitle: text('job_title'),
+    company: text('company'),
+    recruiterName: text('recruiter_name'),
+    prerequisites: text('prerequisites'),
+    tone: text('tone').default('professional'),
+    linkedinMessage: text('linkedin_message'),
+    emailMessage: text('email_message'),
+    resumeUrl: text('resume_url'),
+    coverLetterUrl: text('cover_letter_url'),
+    createdAt: text('created_at').default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    userIdx: index('idx_outreach_user').on(table.userId),
+    createdIdx: index('idx_outreach_created').on(table.createdAt),
+  })
+)
+
+// ============================================================================
 // SCRAPING / MONITORING
 // ============================================================================
 
@@ -409,6 +441,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   jobApplications: many(jobApplications),
   chatConversations: many(chatConversations),
   scrapeRuns: many(scrapeRuns),
+  outreachRecords: many(outreachRecords),
 }))
 
 export const searchProfilesRelations = relations(searchProfiles, ({ one, many }) => ({
@@ -481,5 +514,12 @@ export const scrapeLogsRelations = relations(scrapeLogs, ({ one }) => ({
   scrapeRun: one(scrapeRuns, {
     fields: [scrapeLogs.scrapeRunId],
     references: [scrapeRuns.id],
+  }),
+}))
+
+export const outreachRecordsRelations = relations(outreachRecords, ({ one }) => ({
+  user: one(users, {
+    fields: [outreachRecords.userId],
+    references: [users.id],
   }),
 }))
