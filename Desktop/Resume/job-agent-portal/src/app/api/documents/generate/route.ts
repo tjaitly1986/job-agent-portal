@@ -111,27 +111,105 @@ function extractParagraphTexts(docXml: string): Array<{ text: string; start: num
 }
 
 /**
- * Replace text content within a paragraph XML while preserving formatting.
- * Keeps <w:pPr> and the first <w:r>'s <w:rPr>, replaces text with new content.
+ * Escape XML special characters
  */
-function replaceParagraphText(paraXml: string, newText: string): string {
-  // Extract paragraph properties
-  const pPrMatch = paraXml.match(/<w:pPr>[\s\S]*?<\/w:pPr>/)
-  const pPr = pPrMatch ? pPrMatch[0] : ''
-
-  // Extract first run's properties (font, size, bold, etc.)
-  const rPrMatch = paraXml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)
-  const rPr = rPrMatch ? rPrMatch[0] : ''
-
-  // Escape XML special characters in the new text
-  const escaped = newText
+function escapeXml(text: string): string {
+  return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
 
-  // Rebuild paragraph with preserved formatting and new text
-  return `<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${escaped}</w:t></w:r></w:p>`
+/**
+ * Extract run properties (<w:rPr>...</w:rPr>) from a run XML string.
+ */
+function extractRunProps(runXml: string): string {
+  const match = runXml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)
+  return match ? match[0] : ''
+}
+
+/**
+ * Check if run properties include bold formatting
+ */
+function isBold(rPr: string): boolean {
+  return rPr.includes('<w:b/>') || rPr.includes('<w:b ')
+}
+
+/**
+ * Replace text content within a paragraph XML while preserving formatting.
+ * Handles three patterns:
+ * 1. Tab-delimited paragraphs (e.g., "Bold Label\t: normal values")
+ * 2. Mixed bold/normal paragraphs (e.g., "Bold Label: normal values")
+ * 3. Simple paragraphs (single formatting throughout)
+ */
+function replaceParagraphText(paraXml: string, newText: string): string {
+  // Keep the original <w:p ...> opening tag (preserves paraId, rsid, etc.)
+  const pOpenMatch = paraXml.match(/^<w:p[^>]*>/)
+  const pOpen = pOpenMatch ? pOpenMatch[0] : '<w:p>'
+
+  // Keep paragraph properties
+  const pPrMatch = paraXml.match(/<w:pPr>[\s\S]*?<\/w:pPr>/)
+  const pPr = pPrMatch ? pPrMatch[0] : ''
+
+  // Extract all runs from the paragraph
+  const runRegex = /<w:r[\s>][\s\S]*?<\/w:r>/g
+  const runs: Array<{ xml: string; rPr: string; hasTab: boolean; hasBold: boolean }> = []
+  let runMatch
+  while ((runMatch = runRegex.exec(paraXml)) !== null) {
+    const xml = runMatch[0]
+    const rPr = extractRunProps(xml)
+    runs.push({
+      xml,
+      rPr,
+      hasTab: xml.includes('<w:tab/>'),
+      hasBold: isBold(rPr),
+    })
+  }
+
+  const hasTabs = runs.some((r) => r.hasTab)
+  const firstRPr = runs[0]?.rPr || ''
+  const lastRPr = runs[runs.length - 1]?.rPr || ''
+
+  // Pattern 1: Tab-delimited paragraph (skill lines: "Bold Label\t: values")
+  if (hasTabs) {
+    if (newText.includes(':')) {
+      const colonIdx = newText.indexOf(':')
+      const label = newText.substring(0, colonIdx).trim()
+      const value = newText.substring(colonIdx + 1).trim()
+
+      // Use first run's formatting for label (usually bold), last run's for value
+      const labelRPr = firstRPr
+      const valueRPr = runs.find((r) => !r.hasTab && !r.hasBold)?.rPr || lastRPr
+
+      return `${pOpen}${pPr}<w:r>${labelRPr}<w:t xml:space="preserve">${escapeXml(label)}</w:t></w:r><w:r>${labelRPr}<w:tab/><w:t xml:space="preserve">: </w:t></w:r><w:r>${valueRPr}<w:t xml:space="preserve">${escapeXml(value)}</w:t></w:r></w:p>`
+    }
+    // Tab paragraph but new text has no colon — content is misaligned,
+    // keep original paragraph unchanged to preserve formatting
+    return paraXml
+  }
+
+  // Pattern 2: Mixed bold/normal without tabs (e.g., "Bold Label: normal values")
+  const hasFirstBold = runs.length > 1 && runs[0]?.hasBold
+  const hasNonBoldLater = runs.some((r, i) => i > 0 && !r.hasBold && !r.hasTab)
+
+  if (hasFirstBold && hasNonBoldLater) {
+    if (newText.includes(':')) {
+      const colonIdx = newText.indexOf(':')
+      const label = newText.substring(0, colonIdx + 1).trim()
+      const value = newText.substring(colonIdx + 1).trim()
+
+      const boldRPr = firstRPr
+      const normalRPr = runs.find((r) => !r.hasBold)?.rPr || lastRPr
+
+      return `${pOpen}${pPr}<w:r>${boldRPr}<w:t xml:space="preserve">${escapeXml(label)} </w:t></w:r><w:r>${normalRPr}<w:t xml:space="preserve">${escapeXml(value)}</w:t></w:r></w:p>`
+    }
+    // Mixed bold/normal paragraph but new text has no colon — keep original
+    return paraXml
+  }
+
+  // Pattern 3: Simple paragraph — use first run's formatting for all text
+  return `${pOpen}${pPr}<w:r>${firstRPr}<w:t xml:space="preserve">${escapeXml(newText)}</w:t></w:r></w:p>`
 }
 
 /**
