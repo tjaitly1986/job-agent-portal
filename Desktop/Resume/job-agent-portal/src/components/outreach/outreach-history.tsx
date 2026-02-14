@@ -125,7 +125,7 @@ function RecordItem({ record }: { record: OutreachRecord }) {
                   <Linkedin className="h-4 w-4 text-blue-600" />
                   LinkedIn Message
                   <span className="text-xs text-muted-foreground">
-                    ({record.linkedinMessage.length}/300)
+                    ({record.linkedinMessage.length}/1000)
                   </span>
                 </div>
                 <Button

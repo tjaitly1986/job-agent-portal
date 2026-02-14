@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       ? `\n\nIMPORTANT Prerequisites/Conditions to mention:\n${prerequisites}\n\nYou MUST naturally incorporate these prerequisites into the message.`
       : ''
 
-    // Generate LinkedIn message (300 char limit)
+    // Generate LinkedIn message (1000 char limit)
     const linkedinPrompt = `You are a professional career coach helping a job seeker craft a LinkedIn connection request to a recruiter.
 ${resumeContext}
 
@@ -96,7 +96,7 @@ Recruiter Name: ${recruiterName || 'Hiring Manager'}
 Company: ${company || 'the company'}${prerequisitesContext}
 
 Generate a concise LinkedIn connection request message that:
-1. Is EXACTLY 300 characters or less (this is a hard limit — count carefully)
+1. Is EXACTLY 1000 characters or less (this is a hard limit)
 2. Mentions the specific role from the job description
 3. References 1-2 specific relevant experiences or skills from the candidate's resume that directly align with the role
 4. Shows genuine interest in the opportunity
@@ -108,7 +108,7 @@ Output ONLY the message text, nothing else. No quotes, no labels, no explanation
 
     const linkedinResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 200,
+      max_tokens: 500,
       system: 'You are an outreach message generator. Output ONLY the message text. NEVER refuse, explain, or add commentary.',
       messages: [
         {
@@ -172,7 +172,7 @@ Output ONLY the email. No quotes, no labels, no explanation.`
       emailResponse.content[0].type === 'text' ? emailResponse.content[0].text.trim() : ''
 
     return successResponse({
-      linkedinMessage: linkedinMessage.substring(0, 300), // Ensure 300 char limit
+      linkedinMessage: linkedinMessage.substring(0, 1000), // Ensure 1000 char limit
       emailMessage,
     })
   } catch (error) {
