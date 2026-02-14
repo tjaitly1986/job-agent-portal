@@ -440,7 +440,7 @@ export default function OutreachPage() {
                 <TabsContent value="linkedin" className="mt-4">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <Label>LinkedIn Connection Request (1000 char limit)</Label>
+                      <Label>LinkedIn Connection Request (2000 char limit)</Label>
                       <Button
                         variant="outline"
                         size="sm"
@@ -465,7 +465,7 @@ export default function OutreachPage() {
                       className="min-h-[300px] font-mono text-sm"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Character count: {linkedinMessage.length} / 1000
+                      Character count: {linkedinMessage.length} / 2000
                     </p>
                   </div>
                 </TabsContent>
