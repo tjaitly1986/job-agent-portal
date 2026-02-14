@@ -95,14 +95,15 @@ Job Title: ${jobTitle || 'the position'}
 Recruiter Name: ${recruiterName || 'Hiring Manager'}
 Company: ${company || 'the company'}${prerequisitesContext}
 
-Generate a concise LinkedIn connection request message that:
-1. Is EXACTLY 2000 characters or less (this is a hard limit)
-2. Mentions the specific role from the job description
-3. References 1-2 specific relevant experiences or skills from the candidate's resume that directly align with the role
-4. Shows genuine interest in the opportunity
-5. Uses a ${toneDescription} tone
-6. Signs off with the candidate's first name
-${prerequisites ? '7. Includes the prerequisites/conditions naturally in the message' : ''}
+Generate a LinkedIn connection request message that:
+1. Aim for 500-700 characters (sweet spot for recruiter attention). Maximum 2000 characters.
+2. Be concise and impactful — recruiters skim, so every sentence must earn its place
+3. Mentions the specific role from the job description
+4. References 1-2 specific relevant experiences or quantified achievements from the candidate's resume that directly align with the role
+5. Shows genuine interest in the opportunity
+6. Uses a ${toneDescription} tone
+7. Signs off with the candidate's first name
+${prerequisites ? '8. Includes the prerequisites/conditions naturally in the message' : ''}
 
 Output ONLY the message text in PLAIN TEXT. No markdown (no **, no *, no ##). No quotes, no labels, no explanation.`
 
