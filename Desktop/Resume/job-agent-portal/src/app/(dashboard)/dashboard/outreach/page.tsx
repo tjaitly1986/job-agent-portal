@@ -68,6 +68,7 @@ export default function OutreachPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobDescription,
+          jobTitle: jobTitle.trim() || undefined,
           recruiterName: recruiterName || 'Hiring Manager',
           company: company || 'the company',
           tone: messageTone,
