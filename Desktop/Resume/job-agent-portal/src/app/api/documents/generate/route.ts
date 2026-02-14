@@ -372,14 +372,14 @@ The cover letter should be 250-300 words, professional, and connect the candidat
         },
         {
           role: 'assistant',
-          content: `${today}\n\nDear Hiring Manager,\n\n`,
+          content: `${today}\n\nDear Hiring Manager,`,
         },
       ],
     })
 
     const coverLetterAiOutput =
       coverLetterResponse.content[0].type === 'text' ? coverLetterResponse.content[0].text : ''
-    const coverLetterContent = `${today}\n\nDear Hiring Manager,\n\n${coverLetterAiOutput}\n\nSincerely,\n${userName}`
+    const coverLetterContent = `${today}\n\nDear Hiring Manager,${coverLetterAiOutput}`
 
     // Create Word documents
     const uploadsDir = join(process.cwd(), 'public', 'uploads', 'generated')
