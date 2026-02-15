@@ -136,6 +136,23 @@ function extractRunProps(runXml: string): string {
 }
 
 /**
+ * Check if run properties include bold formatting
+ */
+function isBold(rPr: string): boolean {
+  return rPr.includes('<w:b/>') || rPr.includes('<w:b ')
+}
+
+/**
+ * Remove bold formatting from run properties XML
+ */
+function stripBold(rPr: string): string {
+  return rPr
+    .replace(/<w:b\/>/g, '')
+    .replace(/<w:b [^/]*\/>/g, '')
+    .replace(/<w:b>[\s\S]*?<\/w:b>/g, '')
+}
+
+/**
  * Check if text looks like a section heading (not body/bullet text)
  */
 function isHeadingText(text: string): boolean {
@@ -308,13 +325,14 @@ function findSkillParagraphByLabel(
 
 /**
  * Replace ONLY the value text in a skill paragraph (after the colon/tab).
- * Keeps label run, tab run, colon run, and ALL formatting untouched.
- * Only the comma-separated values change.
+ * Keeps label run, tab run, colon run untouched.
+ * Strips bold from value text — only labels should be bold.
+ * Prepends a space before values to maintain "Label\t: values" spacing.
  */
 function replaceSkillValue(paraXml: string, newValues: string): string {
   // Parse all runs from the paragraph
   const runRegex = /<w:r[\s>][\s\S]*?<\/w:r>/g
-  const runs: Array<{ xml: string; start: number; end: number; hasTab: boolean; text: string }> = []
+  const runs: Array<{ xml: string; start: number; end: number; hasTab: boolean; text: string; rPr: string }> = []
   let m
   while ((m = runRegex.exec(paraXml)) !== null) {
     const xml = m[0]
@@ -325,6 +343,7 @@ function replaceSkillValue(paraXml: string, newValues: string): string {
       end: m.index + xml.length,
       hasTab: xml.includes('<w:tab/>'),
       text: textMatch ? textMatch[1] : '',
+      rPr: extractRunProps(xml),
     })
   }
   if (runs.length === 0) return paraXml
@@ -339,47 +358,55 @@ function replaceSkillValue(paraXml: string, newValues: string): string {
   }
   if (colonRunIdx === -1) return paraXml
 
-  // Value runs are everything after the colon run (excluding tab-only runs)
-  const valueRuns: typeof runs = []
+  // Collect ALL runs after the colon run (excluding tab-only runs) — these are value + spacer runs
+  const afterColonRuns: typeof runs = []
   for (let i = colonRunIdx + 1; i < runs.length; i++) {
     if (!runs[i].hasTab) {
-      valueRuns.push(runs[i])
+      afterColonRuns.push(runs[i])
     }
   }
 
-  if (valueRuns.length === 0) {
+  if (afterColonRuns.length === 0) {
     // Edge case: colon and values might be in the same run
     const colonRun = runs[colonRunIdx]
     const colonPos = colonRun.text.indexOf(':')
     const afterColon = colonRun.text.substring(colonPos + 1).trim()
     if (afterColon.length > 0) {
-      // Replace text after colon in this run
       const keepPrefix = colonRun.text.substring(0, colonPos + 1) + ' '
-      const newRunXml = colonRun.xml.replace(
-        /<w:t[^>]*>[^<]*<\/w:t>/,
-        `<w:t xml:space="preserve">${escapeXml(keepPrefix + newValues)}</w:t>`
-      )
+      const valRPr = stripBold(colonRun.rPr)
+      const newRunXml = `<w:r>${valRPr}<w:t xml:space="preserve">${escapeXml(keepPrefix + newValues)}</w:t></w:r>`
       return paraXml.substring(0, colonRun.start) + newRunXml + paraXml.substring(colonRun.end)
     }
     return paraXml
   }
 
-  // Replace text in the first value run, remove extra value runs
-  const firstValueRun = valueRuns[0]
-  const newRunXml = firstValueRun.xml.replace(
-    /<w:t[^>]*>[^<]*<\/w:t>/,
-    `<w:t xml:space="preserve">${escapeXml(newValues)}</w:t>`
-  )
+  // Find the best rPr for value text: use the first NON-bold run after the colon,
+  // falling back to stripping bold from whatever we have
+  let valueRPr = ''
+  for (const run of afterColonRuns) {
+    if (!isBold(run.rPr) && run.text.trim().length > 0) {
+      valueRPr = run.rPr
+      break
+    }
+  }
+  if (!valueRPr) {
+    // All value runs are bold — strip bold from the first one
+    valueRPr = stripBold(afterColonRuns[0].rPr)
+  }
+
+  // Build replacement run: space + new values, always non-bold
+  const newRunXml = `<w:r>${valueRPr}<w:t xml:space="preserve"> ${escapeXml(newValues)}</w:t></w:r>`
 
   let result = paraXml
 
-  // Remove extra value runs from end to start (preserves string positions)
-  for (let i = valueRuns.length - 1; i >= 1; i--) {
-    result = result.substring(0, valueRuns[i].start) + result.substring(valueRuns[i].end)
+  // Remove ALL runs after colon (from end to start to preserve positions)
+  for (let i = afterColonRuns.length - 1; i >= 0; i--) {
+    result = result.substring(0, afterColonRuns[i].start) + result.substring(afterColonRuns[i].end)
   }
 
-  // Replace first value run with modified version
-  result = result.substring(0, firstValueRun.start) + newRunXml + result.substring(firstValueRun.end)
+  // Insert new value run at the position of the first removed run
+  const insertPos = afterColonRuns[0].start
+  result = result.substring(0, insertPos) + newRunXml + result.substring(insertPos)
 
   return result
 }
@@ -387,7 +414,7 @@ function replaceSkillValue(paraXml: string, newValues: string): string {
 /**
  * Replace text in a bullet/summary paragraph while preserving formatting.
  * Keeps <w:pPr> (including bullet/numbering info) and first run's <w:rPr>,
- * replaces all text content with new text in a single run.
+ * but strips bold — body text should never be bold.
  */
 function replaceBulletText(paraXml: string, newText: string): string {
   // Keep the original <w:p ...> opening tag (preserves paraId, rsid, etc.)
@@ -398,11 +425,11 @@ function replaceBulletText(paraXml: string, newText: string): string {
   const pPrMatch = paraXml.match(/<w:pPr>[\s\S]*?<\/w:pPr>/)
   const pPr = pPrMatch ? pPrMatch[0] : ''
 
-  // Get first run's formatting properties
+  // Get first run's formatting properties, strip bold
   const firstRunMatch = paraXml.match(/<w:r[\s>][\s\S]*?<\/w:r>/)
   let rPr = ''
   if (firstRunMatch) {
-    rPr = extractRunProps(firstRunMatch[0])
+    rPr = stripBold(extractRunProps(firstRunMatch[0]))
   }
 
   return `${pOpen}${pPr}<w:r>${rPr}<w:t xml:space="preserve">${escapeXml(newText)}</w:t></w:r></w:p>`
@@ -443,6 +470,26 @@ async function cloneAndTailorDocx(
     const newXml = replaceSkillValue(paraXml, edit.newValues)
     replacements.push({ start: xmlParagraphs[idx].start, end: xmlParagraphs[idx].end, newXml })
     console.log(`[skill-edit] Matched "${edit.label}" → paragraph ${idx}`)
+
+    // Blank continuation paragraphs: the original doc may split long skill values
+    // across multiple paragraphs (indented, no colon). Since we now put all values
+    // in the main paragraph, blank these to avoid duplicate content.
+    for (let ci = idx + 1; ci < xmlParagraphs.length; ci++) {
+      const contText = xmlParagraphs[ci].text.trim()
+      if (contText.length === 0) continue // skip empty paragraphs
+      if (contText.includes(':') || isHeadingText(contText)) break // next skill or section
+      const contXml = docXml.substring(xmlParagraphs[ci].start, xmlParagraphs[ci].end)
+      if (!contXml.includes('<w:ind ')) break // not indented = not a continuation
+      // This is a continuation paragraph — blank its text content
+      const pOpenMatch = contXml.match(/^<w:p[^>]*>/)
+      const pOpen = pOpenMatch ? pOpenMatch[0] : '<w:p>'
+      const pPrMatch = contXml.match(/<w:pPr>[\s\S]*?<\/w:pPr>/)
+      const pPr = pPrMatch ? pPrMatch[0] : ''
+      const blankedXml = `${pOpen}${pPr}</w:p>`
+      replacements.push({ start: xmlParagraphs[ci].start, end: xmlParagraphs[ci].end, newXml: blankedXml })
+      usedIndices.add(ci)
+      console.log(`[skill-edit] Blanked continuation paragraph ${ci}: "${contText.substring(0, 50)}..."`)
+    }
   }
 
   // 2. Apply summary edits (find by text content, replace text)
