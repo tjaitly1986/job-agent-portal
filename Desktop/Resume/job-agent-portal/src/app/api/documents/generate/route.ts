@@ -39,7 +39,26 @@ interface ResumeEdits {
  * Get the user's resume text and file info from the resumes table,
  * falling back to users.resumeText if no uploads exist
  */
-async function getResumeData(userId: string): Promise<ResumeData | null> {
+async function getResumeData(userId: string, resumeId?: string): Promise<ResumeData | null> {
+  // If a specific resume ID is provided, use that one directly
+  if (resumeId) {
+    const specificResume = await db
+      .select()
+      .from(resumes)
+      .where(and(eq(resumes.id, resumeId), eq(resumes.userId, userId)))
+      .limit(1)
+
+    if (specificResume[0]?.parsedText) {
+      const [user] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId))
+      return {
+        text: specificResume[0].parsedText,
+        name: user?.name || 'Candidate',
+        filePath: specificResume[0].filePath,
+        fileType: specificResume[0].fileType,
+      }
+    }
+  }
+
   // First try to get the default uploaded resume
   const defaultResume = await db
     .select()
@@ -638,14 +657,14 @@ export async function POST(request: NextRequest) {
     const userId = await getUserIdFromRequest(request)
     const body = await request.json()
 
-    const { jobDescription, jobTitle, company } = body
+    const { jobDescription, jobTitle, company, resumeId } = body
 
     if (!jobDescription) {
       return badRequestResponse('Job description is required')
     }
 
     // Get user's resume data including file path
-    const resumeData = await getResumeData(userId)
+    const resumeData = await getResumeData(userId, resumeId)
 
     if (!resumeData) {
       return badRequestResponse('Please upload your resume first in the Resumes section')

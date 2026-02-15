@@ -9,14 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Mail, Linkedin, Loader2, Copy, CheckCircle2, FileText, Upload, Download } from 'lucide-react'
+import { Mail, Linkedin, Loader2, Copy, CheckCircle2, FileText, Upload, Download, X } from 'lucide-react'
 import { useCreateOutreachRecord, useUpdateOutreachRecord } from '@/hooks/use-outreach'
 import { OutreachHistory } from '@/components/outreach/outreach-history'
 
@@ -129,7 +122,7 @@ export default function OutreachPage() {
     setTimeout(() => setCopiedType(null), 2000)
   }
 
-  const handleGenerateDocuments = async (_useCustomResume: boolean = false) => {
+  const handleGenerateDocuments = async (useCustomResume: boolean = false) => {
     if (!jobDescription.trim()) {
       toast({
         title: 'Job description required',
@@ -142,6 +135,29 @@ export default function OutreachPage() {
     setIsGeneratingDocs(true)
     setShowResumeDialog(false)
     try {
+      // If custom resume, upload it first via /api/resumes so it's saved to disk + DB
+      let uploadedResumeId: string | undefined
+      if (useCustomResume && customResumeFile) {
+        const uploadForm = new FormData()
+        uploadForm.append('file', customResumeFile)
+        uploadForm.append('label', customResumeFile.name)
+        uploadForm.append('isDefault', 'false')
+
+        const uploadRes = await fetch('/api/resumes', {
+          method: 'POST',
+          body: uploadForm,
+        })
+
+        if (!uploadRes.ok) {
+          throw new Error('Failed to upload custom resume')
+        }
+
+        const uploadData = await uploadRes.json()
+        uploadedResumeId = uploadData.data?.id
+      }
+
+      // Generate documents using the standard JSON endpoint
+      // Pass resumeId so the API uses the specific uploaded resume
       const response = await fetch('/api/documents/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -149,6 +165,7 @@ export default function OutreachPage() {
           jobDescription,
           jobTitle: jobTitle || 'Position',
           company: company || 'the company',
+          ...(uploadedResumeId && { resumeId: uploadedResumeId }),
         }),
       })
 
@@ -390,7 +407,7 @@ export default function OutreachPage() {
                 </Button>
 
                 <Button
-                  onClick={() => setShowResumeDialog(true)}
+                  onClick={() => setShowResumeDialog(!showResumeDialog)}
                   disabled={isGeneratingDocs || !jobDescription.trim()}
                   variant="secondary"
                   size="lg"
@@ -408,6 +425,76 @@ export default function OutreachPage() {
                   )}
                 </Button>
               </div>
+
+              {/* Inline resume source selection */}
+              {showResumeDialog && (
+                <Card className="p-4 border-2 border-primary/20 bg-muted/30">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h4 className="font-semibold">Choose Resume Source</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Select which resume to use for generating your customized documents
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => setShowResumeDialog(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Button
+                      onClick={() => handleGenerateDocuments(false)}
+                      variant="outline"
+                      className="w-full justify-start h-auto p-4"
+                      disabled={isGeneratingDocs}
+                    >
+                      <div className="text-left">
+                        <div className="font-semibold mb-1">Use Base Resume</div>
+                        <div className="text-sm text-muted-foreground">
+                          Use your profile resume to generate tailored documents
+                        </div>
+                      </div>
+                    </Button>
+
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-muted/30 px-2 text-muted-foreground">Or</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="customResume">Upload New Resume (Optional)</Label>
+                      <Input
+                        id="customResume"
+                        type="file"
+                        accept=".txt,.docx,.pdf"
+                        onChange={(e) => setCustomResumeFile(e.target.files?.[0] || null)}
+                        className="cursor-pointer"
+                      />
+                      {customResumeFile && (
+                        <p className="text-sm text-muted-foreground">
+                          Selected: {customResumeFile.name}
+                        </p>
+                      )}
+                      <Button
+                        onClick={() => handleGenerateDocuments(true)}
+                        disabled={!customResumeFile || isGeneratingDocs}
+                        className="w-full"
+                      >
+                        Use Custom Resume
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              )}
             </div>
           </Card>
         </div>
@@ -612,65 +699,6 @@ export default function OutreachPage() {
       {/* Outreach History */}
       <OutreachHistory />
 
-      {/* Resume Selection Dialog */}
-      <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Choose Resume Source</DialogTitle>
-            <DialogDescription>
-              Select which resume to use for generating your customized documents
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <Button
-              onClick={() => handleGenerateDocuments(false)}
-              variant="outline"
-              className="w-full justify-start h-auto p-4"
-              disabled={isGeneratingDocs}
-            >
-              <div className="text-left">
-                <div className="font-semibold mb-1">Use Base Resume</div>
-                <div className="text-sm text-muted-foreground">
-                  Use your profile resume to generate tailored documents
-                </div>
-              </div>
-            </Button>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or</span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="customResume">Upload New Resume (Optional)</Label>
-              <Input
-                id="customResume"
-                type="file"
-                accept=".txt,.docx,.pdf"
-                onChange={(e) => setCustomResumeFile(e.target.files?.[0] || null)}
-                className="cursor-pointer"
-              />
-              {customResumeFile && (
-                <p className="text-sm text-muted-foreground">
-                  Selected: {customResumeFile.name}
-                </p>
-              )}
-              <Button
-                onClick={() => handleGenerateDocuments(true)}
-                disabled={!customResumeFile || isGeneratingDocs}
-                className="w-full"
-              >
-                Use Custom Resume
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
