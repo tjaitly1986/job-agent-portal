@@ -100,19 +100,19 @@ function RecordItem({ record }: { record: OutreachRecord }) {
               </span>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+          <div
+            role="button"
+            tabIndex={0}
+            className="inline-flex items-center justify-center h-8 w-8 shrink-0 rounded-md text-muted-foreground hover:text-destructive hover:bg-accent cursor-pointer"
             onClick={handleDelete}
-            disabled={deleteRecord.isPending}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDelete(e as unknown as React.MouseEvent) }}
           >
             {deleteRecord.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Trash2 className="h-4 w-4" />
             )}
-          </Button>
+          </div>
         </div>
       </AccordionTrigger>
       <AccordionContent>
