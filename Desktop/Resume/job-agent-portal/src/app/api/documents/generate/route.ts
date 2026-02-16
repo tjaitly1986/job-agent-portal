@@ -54,10 +54,20 @@ async function getResumeData(userId: string, resumeId?: string): Promise<ResumeD
       .where(and(eq(resumes.id, resumeId), eq(resumes.userId, userId)))
       .limit(1)
 
-    if (specificResume[0]?.parsedText) {
+    if (specificResume[0]) {
       const [user] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId))
+      if (specificResume[0].parsedText) {
+        return {
+          text: specificResume[0].parsedText,
+          name: user?.name || 'Candidate',
+          filePath: specificResume[0].filePath,
+          fileType: specificResume[0].fileType,
+        }
+      }
+      // parsedText is null — log warning but still return file path for docx cloning
+      console.warn(`[getResumeData] Resume ${resumeId} has no parsedText, will attempt docx cloning only`)
       return {
-        text: specificResume[0].parsedText,
+        text: '',
         name: user?.name || 'Candidate',
         filePath: specificResume[0].filePath,
         fileType: specificResume[0].fileType,
@@ -204,139 +214,193 @@ function isHeadingText(text: string): boolean {
 // ─── JSON Edits Parsing ────────────────────────────────────────────────
 
 /**
- * Attempt to repair malformed JSON from the AI.
- * Handles common issues: trailing content after closing brace, unclosed strings,
- * truncated arrays/objects, markdown code fences.
+ * Find the balanced closing bracket for an opening '[' or '{' at position `start`.
+ * Properly handles nested brackets and JSON strings. Returns -1 if not found.
  */
-function repairJson(raw: string): string {
-  let s = raw.trim()
-
-  // Strip markdown code fences if present
-  s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')
-
-  // Find the outermost matching closing brace for the opening '{'
-  let depth = 0
+function findMatchingBracket(s: string, start: number): number {
+  const open = s[start]
+  const close = open === '[' ? ']' : '}'
+  let depth = 1
   let inString = false
   let escape = false
-  let lastClosingBrace = -1
 
-  for (let i = 0; i < s.length; i++) {
+  for (let i = start + 1; i < s.length; i++) {
     const ch = s[i]
     if (escape) { escape = false; continue }
     if (ch === '\\' && inString) { escape = true; continue }
     if (ch === '"') { inString = !inString; continue }
     if (inString) continue
-    if (ch === '{' || ch === '[') depth++
-    if (ch === '}' || ch === ']') {
+    if (ch === open) depth++
+    if (ch === close) {
       depth--
-      if (ch === '}') lastClosingBrace = i
-      if (depth === 0) {
-        // Truncate anything after the balanced closing brace
-        return s.substring(0, i + 1)
-      }
+      if (depth === 0) return i
     }
   }
+  return -1
+}
 
-  // If we get here, the JSON is unclosed — try to close it
-  if (lastClosingBrace > 0) {
-    // Truncate at the last valid closing brace and close remaining open brackets
-    s = s.substring(0, lastClosingBrace + 1)
+/**
+ * Extract a named JSON array section from a (possibly malformed) JSON string.
+ * Finds `"sectionName": [...]` and returns the array content as a string.
+ * Returns null if the section is not found.
+ */
+function extractJsonSection(json: string, sectionName: string): string | null {
+  // Find the section key + opening bracket
+  const pattern = new RegExp(`"${sectionName}"\\s*:\\s*\\[`)
+  const match = pattern.exec(json)
+  if (!match) return null
+
+  const bracketStart = json.indexOf('[', match.index + match[0].length - 1)
+  if (bracketStart === -1) return null
+
+  const bracketEnd = findMatchingBracket(json, bracketStart)
+  if (bracketEnd === -1) {
+    // Array is unclosed — take everything after '[' and try to close it
+    let content = json.substring(bracketStart)
+    // Remove trailing partial object (after last '}')
+    const lastBrace = content.lastIndexOf('}')
+    if (lastBrace > 0) {
+      content = content.substring(0, lastBrace + 1) + ']'
+    }
+    return content
   }
 
-  // Close any remaining open structures
-  // Remove any trailing partial string/value (after last comma or colon)
-  s = s.replace(/,\s*"[^"]*$/, '')  // trailing partial key
-  s = s.replace(/:\s*"[^"]*$/, ': ""')  // trailing partial string value
-  s = s.replace(/,\s*$/, '')  // trailing comma
+  return json.substring(bracketStart, bracketEnd + 1)
+}
 
-  // Count remaining unclosed brackets
-  depth = 0
-  let arrayDepth = 0
-  inString = false
-  escape = false
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i]
-    if (escape) { escape = false; continue }
-    if (ch === '\\' && inString) { escape = true; continue }
-    if (ch === '"') { inString = !inString; continue }
-    if (inString) continue
-    if (ch === '{') depth++
-    if (ch === '}') depth--
-    if (ch === '[') arrayDepth++
-    if (ch === ']') arrayDepth--
+/**
+ * Parse individual JSON objects from an array string, tolerating malformed entries.
+ * Extracts each `{...}` object and parses it independently, skipping broken ones.
+ */
+function parseObjectsFromArray(arrayStr: string): Record<string, unknown>[] {
+  const results: Record<string, unknown>[] = []
+  let i = 0
+
+  while (i < arrayStr.length) {
+    // Find next opening brace
+    const braceStart = arrayStr.indexOf('{', i)
+    if (braceStart === -1) break
+
+    const braceEnd = findMatchingBracket(arrayStr, braceStart)
+    if (braceEnd === -1) break
+
+    const objStr = arrayStr.substring(braceStart, braceEnd + 1)
+    try {
+      const obj = JSON.parse(objStr)
+      results.push(obj)
+    } catch {
+      // Try fixing common issues: trailing commas, unescaped newlines
+      try {
+        const fixed = objStr
+          .replace(/,\s*}/g, '}')              // trailing comma before }
+          .replace(/[\r\n]+/g, ' ')             // literal newlines → spaces
+          .replace(/\t/g, ' ')                  // literal tabs → spaces
+        const obj = JSON.parse(fixed)
+        results.push(obj)
+      } catch {
+        console.warn(`[parseEdits] Skipping malformed object at position ${braceStart}`)
+      }
+    }
+
+    i = braceEnd + 1
   }
 
-  // Close unclosed arrays then objects
-  while (arrayDepth > 0) { s += ']'; arrayDepth-- }
-  while (depth > 0) { s += '}'; depth-- }
-
-  return s
+  return results
 }
 
 /**
  * Parse and validate the AI's JSON edits response.
- * Returns null on parse failure or if no actual edits were found.
+ * Uses a resilient section-by-section extraction strategy:
+ * 1. Try full JSON.parse first (fastest path)
+ * 2. Fall back to extracting each section array independently
+ *    and parsing individual objects within each section
+ *
+ * This ensures that even if one section has malformed JSON (e.g. unescaped
+ * quotes), the other sections are still recovered.
  */
 function parseResumeEdits(jsonStr: string): ResumeEdits | null {
+  // Strip markdown code fences if present
+  const cleaned = jsonStr.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')
+
+  // Log raw output length for debugging
+  console.log(`[parseEdits] Raw JSON length: ${cleaned.length} chars`)
+
+  const edits: ResumeEdits = {
+    summary: [],
+    skills: [],
+    experience: [],
+    remove: [],
+  }
+
+  // Strategy 1: Try direct JSON.parse (fast path)
+  let parsed: Record<string, unknown> | null = null
   try {
-    // Try direct parse first, then repair if it fails
-    let parsed: Record<string, unknown>
-    try {
-      parsed = JSON.parse(jsonStr)
-    } catch {
-      console.warn('[parseEdits] Direct JSON.parse failed, attempting repair...')
-      const repaired = repairJson(jsonStr)
-      parsed = JSON.parse(repaired)
-      console.log('[parseEdits] JSON repair succeeded')
-    }
+    parsed = JSON.parse(cleaned)
+    console.log('[parseEdits] Direct JSON.parse succeeded')
+  } catch (directErr) {
+    console.warn('[parseEdits] Direct JSON.parse failed:', (directErr as Error).message)
+  }
 
-    const edits: ResumeEdits = {
-      summary: [],
-      skills: [],
-      experience: [],
-      remove: [],
-    }
+  if (parsed) {
+    // Extract from parsed object
+    if (Array.isArray(parsed.summary)) edits.summary = parsed.summary
+    if (Array.isArray(parsed.skills)) edits.skills = parsed.skills
+    if (Array.isArray(parsed.experience)) edits.experience = parsed.experience
+    if (Array.isArray(parsed.remove)) edits.remove = parsed.remove
+  } else {
+    // Strategy 2: Section-by-section extraction with individual object parsing
+    console.log('[parseEdits] Falling back to section-by-section extraction...')
 
-    if (Array.isArray(parsed.summary)) {
-      edits.summary = parsed.summary.filter(
-        (e: Record<string, unknown>) =>
-          typeof e.originalText === 'string' &&
-          typeof e.newText === 'string' &&
-          e.originalText !== e.newText
-      )
-    }
-    if (Array.isArray(parsed.skills)) {
-      edits.skills = parsed.skills.filter(
-        (e: Record<string, unknown>) =>
-          typeof e.label === 'string' &&
-          typeof e.newValues === 'string'
-      )
-    }
-    if (Array.isArray(parsed.experience)) {
-      edits.experience = parsed.experience.filter(
-        (e: Record<string, unknown>) =>
-          typeof e.originalText === 'string' &&
-          typeof e.newText === 'string' &&
-          e.originalText !== e.newText
-      )
-    }
-    if (Array.isArray(parsed.remove)) {
-      edits.remove = parsed.remove.filter(
-        (e: Record<string, unknown>) =>
-          typeof e.originalText === 'string' &&
-          e.originalText.length > 0
-      )
-    }
+    const sections = ['summary', 'skills', 'experience', 'remove'] as const
+    for (const section of sections) {
+      const arrayStr = extractJsonSection(cleaned, section)
+      if (!arrayStr) {
+        console.warn(`[parseEdits] Section "${section}" not found`)
+        continue
+      }
 
-    const totalEdits = edits.summary.length + edits.skills.length + edits.experience.length + edits.remove.length
-    if (totalEdits === 0) return null
+      const objects = parseObjectsFromArray(arrayStr)
+      console.log(`[parseEdits] Section "${section}": extracted ${objects.length} objects`)
 
-    console.log(`[parseEdits] Found ${edits.summary.length} summary, ${edits.skills.length} skill, ${edits.experience.length} experience, ${edits.remove.length} removal edits`)
-    return edits
-  } catch (err) {
-    console.error('[parseEdits] Failed to parse JSON even after repair:', err)
+      if (section === 'summary') edits.summary = objects as ResumeEdits['summary']
+      else if (section === 'skills') edits.skills = objects as ResumeEdits['skills']
+      else if (section === 'experience') edits.experience = objects as ResumeEdits['experience']
+      else if (section === 'remove') edits.remove = objects as ResumeEdits['remove']
+    }
+  }
+
+  // Validate and filter each section
+  edits.summary = edits.summary.filter(
+    (e) =>
+      typeof e.originalText === 'string' &&
+      typeof e.newText === 'string' &&
+      e.originalText !== e.newText
+  )
+  edits.skills = edits.skills.filter(
+    (e) =>
+      typeof e.label === 'string' &&
+      typeof e.newValues === 'string'
+  )
+  edits.experience = edits.experience.filter(
+    (e) =>
+      typeof e.originalText === 'string' &&
+      typeof e.newText === 'string' &&
+      e.originalText !== e.newText
+  )
+  edits.remove = edits.remove.filter(
+    (e) =>
+      typeof e.originalText === 'string' &&
+      e.originalText.length > 0
+  )
+
+  const totalEdits = edits.summary.length + edits.skills.length + edits.experience.length + edits.remove.length
+  if (totalEdits === 0) {
+    console.error('[parseEdits] No valid edits found after parsing')
     return null
   }
+
+  console.log(`[parseEdits] Found ${edits.summary.length} summary, ${edits.skills.length} skill, ${edits.experience.length} experience, ${edits.remove.length} removal edits`)
+  return edits
 }
 
 // ─── Content-Based Paragraph Finders ────────────────────────────────────
@@ -902,6 +966,13 @@ The cover letter should be 250-300 words, professional, and connect the candidat
     let edits: ResumeEdits | null = null
     if (resumeResult.status === 'fulfilled') {
       const editsJson = '{' + resumeResult.value
+      // Log raw AI output for debugging
+      try {
+        const debugDir = join(process.cwd(), 'public', 'uploads', 'generated')
+        if (!existsSync(debugDir)) mkdirSync(debugDir, { recursive: true })
+        await writeFile(join(debugDir, '_last_ai_edits.json'), editsJson)
+        console.log(`[generate] Raw AI output saved (${editsJson.length} chars)`)
+      } catch {}
       edits = parseResumeEdits(editsJson)
     } else {
       console.error('[generate] Resume edits API call failed:', resumeResult.reason)
