@@ -742,9 +742,15 @@ CRITICAL RULES:
 REMOVING IRRELEVANT CONTENT:
 - Use the "remove" array to delete paragraphs that waste space and are NOT relevant to the target role.
 - REMOVE company/client description lines (e.g., "SPS Commerce is a leading cloud-based supply chain..." or "Description: Fenwick Software is a..."). These describe the employer, not the candidate.
+- REMOVE "Key Achievements" sub-headings and their bullet points from past/older roles. Only keep key achievements for the most recent or most relevant role if directly applicable to the target job.
 - REMOVE bullet points that are clearly irrelevant to the target job description and add no value.
-- Do NOT remove job titles, dates, company names, role headers, or section headings.
+- Do NOT remove job titles, dates, company names, role headers, or main section headings (SUMMARY, EXPERIENCE, etc.).
 - Be selective — only remove content that genuinely wastes space. Keep bullets that can be reworded to be relevant (put those in "experience" edits instead).
+
+PROFILE SUMMARY:
+- The profile summary should be concise and impactful — trim it to 4-5 of the STRONGEST bullet points most relevant to the target role.
+- Remove weaker, redundant, or generic summary bullets that don't differentiate the candidate. Put these in the "remove" array.
+- Reword the kept bullets (via "summary" edits) to be tightly aligned with the job description.
 - Output ONLY valid JSON. No markdown, no code blocks, no commentary.`,
       messages: [
         {
