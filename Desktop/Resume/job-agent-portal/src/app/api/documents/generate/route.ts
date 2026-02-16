@@ -880,6 +880,11 @@ The cover letter should be 250-300 words, professional, and connect the candidat
       return error
     }
     console.error('POST /api/documents/generate error:', error)
+    // Write error details to file for debugging
+    try {
+      const errMsg = error instanceof Error ? `${error.message}\n${error.stack}` : String(error)
+      await writeFile(join(process.cwd(), 'public', 'uploads', 'generated', '_error_log.txt'), `${new Date().toISOString()}\n${errMsg}`)
+    } catch {}
     return serverErrorResponse('Failed to generate documents')
   }
 }

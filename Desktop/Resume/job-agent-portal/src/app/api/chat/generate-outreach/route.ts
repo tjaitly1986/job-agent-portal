@@ -96,10 +96,10 @@ Recruiter Name: ${recruiterName || 'Hiring Manager'}
 Company: ${company || 'the company'}${prerequisitesContext}
 
 Generate a LinkedIn connection request message that:
-1. Aim for 500-700 characters (sweet spot for recruiter attention). Maximum 2000 characters.
-2. Be concise and impactful — recruiters skim, so every sentence must earn its place
+1. MUST be under 700 characters total. This is a HARD LIMIT — recruiters won't read longer messages.
+2. Be crisp and punchy — 4-6 sentences max. Every word must earn its place.
 3. Mentions the specific role from the job description
-4. References 1-2 specific relevant experiences or quantified achievements from the candidate's resume that directly align with the role
+4. References 1 specific relevant achievement from the resume that directly aligns with the role
 5. Shows genuine interest in the opportunity
 6. Uses a ${toneDescription} tone
 7. Signs off with the candidate's first name
@@ -109,8 +109,8 @@ Output ONLY the message text in PLAIN TEXT. No markdown (no **, no *, no ##). No
 
     const linkedinResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 500,
-      system: 'You are an outreach message generator. Output ONLY the message text in PLAIN TEXT. NEVER use markdown formatting — no **, no *, no ##, no bullet symbols, no backticks. NEVER refuse, explain, or add commentary.',
+      max_tokens: 250,
+      system: 'You are an outreach message generator. Output ONLY the message text in PLAIN TEXT. Keep it under 700 characters — short and impactful. NEVER use markdown formatting — no **, no *, no ##, no bullet symbols, no backticks. NEVER refuse, explain, or add commentary.',
       messages: [
         {
           role: 'user',
@@ -173,7 +173,7 @@ Output ONLY the email in PLAIN TEXT. No markdown (no **, no *, no ##). No quotes
       emailResponse.content[0].type === 'text' ? emailResponse.content[0].text.trim() : ''
 
     return successResponse({
-      linkedinMessage: linkedinMessage.substring(0, 2000), // Ensure 2000 char limit
+      linkedinMessage: linkedinMessage.substring(0, 700), // Hard limit: 700 chars for recruiter readability
       emailMessage,
     })
   } catch (error) {
