@@ -472,16 +472,12 @@ export default function OutreachPage() {
 
                     <div className="space-y-2">
                       <Label>Upload New Resume (Optional)</Label>
-                      <label className="flex items-center justify-center w-full h-10 px-4 py-2 rounded-md border border-input bg-background text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors">
-                        <Upload className="mr-2 h-4 w-4" />
-                        {customResumeFile ? customResumeFile.name : 'Choose File (.txt, .docx, .pdf)'}
-                        <input
-                          type="file"
-                          accept=".txt,.docx,.pdf"
-                          onChange={(e) => setCustomResumeFile(e.target.files?.[0] || null)}
-                          className="sr-only"
-                        />
-                      </label>
+                      <input
+                        type="file"
+                        accept=".txt,.docx,.pdf"
+                        onChange={(e) => setCustomResumeFile(e.target.files?.[0] || null)}
+                        className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90 cursor-pointer"
+                      />
                       <Button
                         onClick={() => handleGenerateDocuments(true)}
                         disabled={!customResumeFile || isGeneratingDocs}
