@@ -24,6 +24,7 @@ import { mkdirSync, existsSync } from 'fs'
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
   timeout: 300_000, // 5 minutes — resume tailoring calls can take 30-60s
+  maxRetries: 3, // retry on transient connection errors
 })
 
 interface ResumeData {
@@ -203,12 +204,92 @@ function isHeadingText(text: string): boolean {
 // ─── JSON Edits Parsing ────────────────────────────────────────────────
 
 /**
+ * Attempt to repair malformed JSON from the AI.
+ * Handles common issues: trailing content after closing brace, unclosed strings,
+ * truncated arrays/objects, markdown code fences.
+ */
+function repairJson(raw: string): string {
+  let s = raw.trim()
+
+  // Strip markdown code fences if present
+  s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')
+
+  // Find the outermost matching closing brace for the opening '{'
+  let depth = 0
+  let inString = false
+  let escape = false
+  let lastClosingBrace = -1
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]
+    if (escape) { escape = false; continue }
+    if (ch === '\\' && inString) { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{' || ch === '[') depth++
+    if (ch === '}' || ch === ']') {
+      depth--
+      if (ch === '}') lastClosingBrace = i
+      if (depth === 0) {
+        // Truncate anything after the balanced closing brace
+        return s.substring(0, i + 1)
+      }
+    }
+  }
+
+  // If we get here, the JSON is unclosed — try to close it
+  if (lastClosingBrace > 0) {
+    // Truncate at the last valid closing brace and close remaining open brackets
+    s = s.substring(0, lastClosingBrace + 1)
+  }
+
+  // Close any remaining open structures
+  // Remove any trailing partial string/value (after last comma or colon)
+  s = s.replace(/,\s*"[^"]*$/, '')  // trailing partial key
+  s = s.replace(/:\s*"[^"]*$/, ': ""')  // trailing partial string value
+  s = s.replace(/,\s*$/, '')  // trailing comma
+
+  // Count remaining unclosed brackets
+  depth = 0
+  let arrayDepth = 0
+  inString = false
+  escape = false
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]
+    if (escape) { escape = false; continue }
+    if (ch === '\\' && inString) { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{') depth++
+    if (ch === '}') depth--
+    if (ch === '[') arrayDepth++
+    if (ch === ']') arrayDepth--
+  }
+
+  // Close unclosed arrays then objects
+  while (arrayDepth > 0) { s += ']'; arrayDepth-- }
+  while (depth > 0) { s += '}'; depth-- }
+
+  return s
+}
+
+/**
  * Parse and validate the AI's JSON edits response.
  * Returns null on parse failure or if no actual edits were found.
  */
 function parseResumeEdits(jsonStr: string): ResumeEdits | null {
   try {
-    const parsed = JSON.parse(jsonStr)
+    // Try direct parse first, then repair if it fails
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(jsonStr)
+    } catch {
+      console.warn('[parseEdits] Direct JSON.parse failed, attempting repair...')
+      const repaired = repairJson(jsonStr)
+      parsed = JSON.parse(repaired)
+      console.log('[parseEdits] JSON repair succeeded')
+    }
+
     const edits: ResumeEdits = {
       summary: [],
       skills: [],
@@ -253,7 +334,7 @@ function parseResumeEdits(jsonStr: string): ResumeEdits | null {
     console.log(`[parseEdits] Found ${edits.summary.length} summary, ${edits.skills.length} skill, ${edits.experience.length} experience, ${edits.remove.length} removal edits`)
     return edits
   } catch (err) {
-    console.error('[parseEdits] Failed to parse JSON:', err)
+    console.error('[parseEdits] Failed to parse JSON even after repair:', err)
     return null
   }
 }
@@ -714,8 +795,10 @@ export async function POST(request: NextRequest) {
     const hasFile = resumeFilePath && existsSync(resumeFilePath)
     const canClone = isDocx && hasFile
 
-    // Use AI to generate targeted JSON edits for the resume
-    const resumeResponse = await anthropic.messages.create({
+    // Run resume edits + cover letter generation in PARALLEL to halve total time
+    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
+    const resumePromise = anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 8000,
       system: `You are an automated resume tailoring tool. You receive a resume and a job description, and output a JSON object with SPECIFIC EDITS to make to the resume.
@@ -772,15 +855,7 @@ PROFILE SUMMARY:
       ],
     })
 
-    // Parse the AI's JSON edits response (prepend the '{' prefill)
-    const aiOutput = resumeResponse.content[0].type === 'text' ? resumeResponse.content[0].text : ''
-    const editsJson = '{' + aiOutput
-    const edits = parseResumeEdits(editsJson)
-
-    // Generate cover letter content (unchanged)
-    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-
-    const coverLetterResponse = await anthropic.messages.create({
+    const coverLetterPromise = anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1500,
       system: `You are an automated cover letter generator. You output ONLY the cover letter text.
@@ -799,9 +874,33 @@ The cover letter should be 250-300 words, professional, and connect the candidat
       ],
     })
 
-    const coverLetterAiOutput =
-      coverLetterResponse.content[0].type === 'text' ? coverLetterResponse.content[0].text : ''
-    const coverLetterContent = `${today}\n\nDear Hiring Manager,${coverLetterAiOutput}`
+    // Await both in parallel — if one fails, we still get the other via allSettled
+    const [resumeResult, coverLetterResult] = await Promise.allSettled([resumePromise, coverLetterPromise])
+
+    // Parse resume edits (prepend the '{' prefill)
+    let edits: ResumeEdits | null = null
+    if (resumeResult.status === 'fulfilled') {
+      const aiOutput = resumeResult.value.content[0].type === 'text' ? resumeResult.value.content[0].text : ''
+      const editsJson = '{' + aiOutput
+      edits = parseResumeEdits(editsJson)
+    } else {
+      console.error('[generate] Resume edits API call failed:', resumeResult.reason)
+    }
+
+    // Parse cover letter
+    let coverLetterContent = ''
+    if (coverLetterResult.status === 'fulfilled') {
+      const coverLetterAiOutput =
+        coverLetterResult.value.content[0].type === 'text' ? coverLetterResult.value.content[0].text : ''
+      coverLetterContent = `${today}\n\nDear Hiring Manager,${coverLetterAiOutput}`
+    } else {
+      console.error('[generate] Cover letter API call failed:', coverLetterResult.reason)
+    }
+
+    // If both API calls failed, throw an error
+    if (resumeResult.status === 'rejected' && coverLetterResult.status === 'rejected') {
+      throw resumeResult.reason
+    }
 
     // Create output directory
     const uploadsDir = join(process.cwd(), 'public', 'uploads', 'generated')
@@ -839,52 +938,66 @@ The cover letter should be 250-300 words, professional, and connect the candidat
       resumeBuffer = Buffer.from(await Packer.toBuffer(resumeDoc))
     }
 
-    // Create cover letter document
-    const coverLetterDoc = new Document({
-      sections: [
-        {
-          properties: {
-            page: {
-              margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 },
-            },
-          },
-          children: coverLetterContent.split('\n').map(
-            (line) =>
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: line,
-                    font: 'Calibri',
-                    size: 22,
-                  }),
-                ],
-                spacing: { after: 120 },
-              })
-          ),
-        },
-      ],
-    })
-
-    // Save documents
-    const coverLetterBuffer = await Packer.toBuffer(coverLetterDoc)
-
+    // Save resume
     await writeFile(join(uploadsDir, resumeFilename), resumeBuffer)
-    await writeFile(join(uploadsDir, coverLetterFilename), coverLetterBuffer)
+
+    // Create and save cover letter document (if cover letter was generated)
+    let coverLetterSavedUrl: string | undefined
+    if (coverLetterContent) {
+      const coverLetterDoc = new Document({
+        sections: [
+          {
+            properties: {
+              page: {
+                margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 },
+              },
+            },
+            children: coverLetterContent.split('\n').map(
+              (line) =>
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: line,
+                      font: 'Calibri',
+                      size: 22,
+                    }),
+                  ],
+                  spacing: { after: 120 },
+                })
+            ),
+          },
+        ],
+      })
+
+      const coverLetterBuffer = await Packer.toBuffer(coverLetterDoc)
+      await writeFile(join(uploadsDir, coverLetterFilename), coverLetterBuffer)
+      coverLetterSavedUrl = `/uploads/generated/${coverLetterFilename}`
+    }
 
     return successResponse({
       resumeUrl: `/uploads/generated/${resumeFilename}`,
-      coverLetterUrl: `/uploads/generated/${coverLetterFilename}`,
+      coverLetterUrl: coverLetterSavedUrl || `/uploads/generated/${coverLetterFilename}`,
     })
   } catch (error) {
+    // Write error details to file for debugging (all error types)
+    try {
+      let errMsg = ''
+      if (error instanceof Response) {
+        const clone = error.clone()
+        const body = await clone.text()
+        errMsg = `Response error: status=${error.status} body=${body}`
+      } else if (error instanceof Error) {
+        errMsg = `${error.message}\n${error.stack}`
+      } else {
+        errMsg = String(error)
+      }
+      await writeFile(join(process.cwd(), 'public', 'uploads', 'generated', '_error_log.txt'), `${new Date().toISOString()}\n${errMsg}`)
+    } catch {}
+
     if (error instanceof Response) {
       return error
     }
     console.error('POST /api/documents/generate error:', error)
-    // Write error details to file for debugging
-    try {
-      const errMsg = error instanceof Error ? `${error.message}\n${error.stack}` : String(error)
-      await writeFile(join(process.cwd(), 'public', 'uploads', 'generated', '_error_log.txt'), `${new Date().toISOString()}\n${errMsg}`)
-    } catch {}
     return serverErrorResponse('Failed to generate documents')
   }
 }
