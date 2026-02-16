@@ -413,8 +413,13 @@ function replaceSkillValue(paraXml: string, newValues: string): string {
     valueRPr = stripBold(afterColonRuns[0].rPr)
   }
 
-  // Build replacement run: space + new values, always non-bold
-  const newRunXml = `<w:r>${valueRPr}<w:t xml:space="preserve"> ${escapeXml(newValues)}</w:t></w:r>`
+  // Check if the colon run already ends with a space (e.g., ": ") to avoid double spacing
+  const colonText = runs[colonRunIdx].text
+  const colonEndsWithSpace = colonText.endsWith(' ') || colonText.endsWith(':\u00A0')
+  const prefix = colonEndsWithSpace ? '' : ' '
+
+  // Build replacement run: conditionally add leading space, always non-bold
+  const newRunXml = `<w:r>${valueRPr}<w:t xml:space="preserve">${prefix}${escapeXml(newValues)}</w:t></w:r>`
 
   let result = paraXml
 
@@ -499,13 +504,8 @@ async function cloneAndTailorDocx(
       if (contText.includes(':') || isHeadingText(contText)) break // next skill or section
       const contXml = docXml.substring(xmlParagraphs[ci].start, xmlParagraphs[ci].end)
       if (!contXml.includes('<w:ind ')) break // not indented = not a continuation
-      // This is a continuation paragraph — blank its text content
-      const pOpenMatch = contXml.match(/^<w:p[^>]*>/)
-      const pOpen = pOpenMatch ? pOpenMatch[0] : '<w:p>'
-      const pPrMatch = contXml.match(/<w:pPr>[\s\S]*?<\/w:pPr>/)
-      const pPr = pPrMatch ? pPrMatch[0] : ''
-      const blankedXml = `${pOpen}${pPr}</w:p>`
-      replacements.push({ start: xmlParagraphs[ci].start, end: xmlParagraphs[ci].end, newXml: blankedXml })
+      // This is a continuation paragraph — remove it entirely to avoid blank lines
+      replacements.push({ start: xmlParagraphs[ci].start, end: xmlParagraphs[ci].end, newXml: '' })
       usedIndices.add(ci)
       console.log(`[skill-edit] Blanked continuation paragraph ${ci}: "${contText.substring(0, 50)}..."`)
     }
