@@ -1,12 +1,20 @@
 'use client'
 
-import { JobApplication } from '@/types/tracker'
+import { useState } from 'react'
+import { JobApplication, ApplicationStatus } from '@/types/tracker'
 import { StatusBadge } from './status-badge'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Building2, MapPin, Calendar, Edit, Trash2, ExternalLink, ClipboardList } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Building2, MapPin, Calendar, Edit, Trash2, ExternalLink, ClipboardList, ArrowUpDown } from 'lucide-react'
 import { format } from 'date-fns'
 
 interface TrackerTableProps {
@@ -15,7 +23,24 @@ interface TrackerTableProps {
   onEdit?: (application: JobApplication) => void
   onDelete?: (application: JobApplication) => void
   onViewDetails?: (application: JobApplication) => void
+  onStatusChange?: (application: JobApplication, newStatus: ApplicationStatus) => void
 }
+
+type SortField = 'title' | 'company' | 'status' | 'appliedAt' | 'updatedAt'
+type SortDir = 'asc' | 'desc'
+
+const allStatuses: { value: ApplicationStatus; label: string }[] = [
+  { value: 'saved', label: 'Saved' },
+  { value: 'ready_to_apply', label: 'Ready to Apply' },
+  { value: 'applied', label: 'Applied' },
+  { value: 'phone_screen', label: 'Phone Screen' },
+  { value: 'interview', label: 'Interview' },
+  { value: 'technical', label: 'Technical' },
+  { value: 'offer', label: 'Offer' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'withdrawn', label: 'Withdrawn' },
+  { value: 'expired', label: 'Expired' },
+]
 
 export function TrackerTable({
   applications,
@@ -23,7 +48,38 @@ export function TrackerTable({
   onEdit,
   onDelete,
   onViewDetails,
+  onStatusChange,
 }: TrackerTableProps) {
+  const [sortField, setSortField] = useState<SortField>('updatedAt')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+  }
+
+  const sorted = [...applications].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    switch (sortField) {
+      case 'title':
+        return dir * (a.job?.title || '').localeCompare(b.job?.title || '')
+      case 'company':
+        return dir * (a.job?.company || '').localeCompare(b.job?.company || '')
+      case 'status':
+        return dir * a.status.localeCompare(b.status)
+      case 'appliedAt':
+        return dir * ((a.appliedAt || '').localeCompare(b.appliedAt || ''))
+      case 'updatedAt':
+        return dir * a.updatedAt.localeCompare(b.updatedAt)
+      default:
+        return 0
+    }
+  })
+
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -44,23 +100,35 @@ export function TrackerTable({
     )
   }
 
+  const SortHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
+    <th
+      className="p-3 text-left text-sm font-medium cursor-pointer hover:bg-muted/80 select-none"
+      onClick={() => toggleSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        <ArrowUpDown className={`h-3 w-3 ${sortField === field ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+      </div>
+    </th>
+  )
+
   return (
     <div className="rounded-md border">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="p-3 text-left text-sm font-medium">Job</th>
-              <th className="p-3 text-left text-sm font-medium">Company</th>
+              <SortHeader field="title">Job</SortHeader>
+              <SortHeader field="company">Company</SortHeader>
               <th className="p-3 text-left text-sm font-medium">Location</th>
-              <th className="p-3 text-left text-sm font-medium">Status</th>
-              <th className="p-3 text-left text-sm font-medium">Applied</th>
+              <SortHeader field="status">Status</SortHeader>
+              <SortHeader field="appliedAt">Applied</SortHeader>
               <th className="p-3 text-left text-sm font-medium">Follow Up</th>
               <th className="p-3 text-right text-sm font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {applications.map((application) => {
+            {sorted.map((application) => {
               const job = application.job
               if (!job) return null
 
@@ -94,7 +162,27 @@ export function TrackerTable({
                     )}
                   </td>
                   <td className="p-3">
-                    <StatusBadge status={application.status} />
+                    {onStatusChange ? (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Select
+                          value={application.status}
+                          onValueChange={(val) => onStatusChange(application, val as ApplicationStatus)}
+                        >
+                          <SelectTrigger className="h-8 w-[140px] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allStatuses.map((s) => (
+                              <SelectItem key={s.value} value={s.value} className="text-xs">
+                                {s.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <StatusBadge status={application.status} />
+                    )}
                   </td>
                   <td className="p-3">
                     {application.appliedAt ? (

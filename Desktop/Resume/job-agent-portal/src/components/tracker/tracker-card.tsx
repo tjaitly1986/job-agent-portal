@@ -1,10 +1,16 @@
 'use client'
 
-import { JobApplication } from '@/types/tracker'
+import { JobApplication, ApplicationStatus } from '@/types/tracker'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { StatusBadge } from './status-badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Building2,
   MapPin,
@@ -21,9 +27,23 @@ interface TrackerCardProps {
   onEdit?: () => void
   onDelete?: () => void
   onClick?: () => void
+  onStatusChange?: (newStatus: ApplicationStatus) => void
 }
 
-export function TrackerCard({ application, onEdit, onDelete, onClick }: TrackerCardProps) {
+const allStatuses: { value: ApplicationStatus; label: string }[] = [
+  { value: 'saved', label: 'Saved' },
+  { value: 'ready_to_apply', label: 'Ready to Apply' },
+  { value: 'applied', label: 'Applied' },
+  { value: 'phone_screen', label: 'Phone Screen' },
+  { value: 'interview', label: 'Interview' },
+  { value: 'technical', label: 'Technical' },
+  { value: 'offer', label: 'Offer' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'withdrawn', label: 'Withdrawn' },
+  { value: 'expired', label: 'Expired' },
+]
+
+export function TrackerCard({ application, onEdit, onDelete, onClick, onStatusChange }: TrackerCardProps) {
   const job = application.job
 
   if (!job) return null
@@ -43,7 +63,6 @@ export function TrackerCard({ application, onEdit, onDelete, onClick }: TrackerC
               <span className="line-clamp-1">{job.company}</span>
             </div>
           </div>
-          <StatusBadge status={application.status} />
         </div>
 
         {/* Location */}
@@ -52,6 +71,27 @@ export function TrackerCard({ application, onEdit, onDelete, onClick }: TrackerC
           <span>{job.location}</span>
           {job.isRemote && <Badge variant="secondary" className="ml-1 text-xs">Remote</Badge>}
         </div>
+
+        {/* Inline Status Select */}
+        {onStatusChange && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <Select
+              value={application.status}
+              onValueChange={(val) => onStatusChange(val as ApplicationStatus)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {allStatuses.map((s) => (
+                  <SelectItem key={s.value} value={s.value} className="text-xs">
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Dates */}
         <div className="space-y-1 text-xs text-muted-foreground">
