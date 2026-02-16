@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { PageHeader } from '@/components/shared/page-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -43,6 +43,7 @@ export default function OutreachPage() {
   const [showResumeDialog, setShowResumeDialog] = useState(false)
   const [customResumeFile, setCustomResumeFile] = useState<File | null>(null)
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(null)
+  const customResumeInputRef = useRef<HTMLInputElement>(null)
 
   const handleGenerate = async () => {
     if (!jobDescription.trim()) {
@@ -471,19 +472,23 @@ export default function OutreachPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="customResume">Upload New Resume (Optional)</Label>
-                      <Input
-                        id="customResume"
+                      <Label>Upload New Resume (Optional)</Label>
+                      <input
+                        ref={customResumeInputRef}
                         type="file"
                         accept=".txt,.docx,.pdf"
                         onChange={(e) => setCustomResumeFile(e.target.files?.[0] || null)}
-                        className="cursor-pointer"
+                        className="hidden"
                       />
-                      {customResumeFile && (
-                        <p className="text-sm text-muted-foreground">
-                          Selected: {customResumeFile.name}
-                        </p>
-                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => customResumeInputRef.current?.click()}
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {customResumeFile ? customResumeFile.name : 'Choose File (.txt, .docx, .pdf)'}
+                      </Button>
                       <Button
                         onClick={() => handleGenerateDocuments(true)}
                         disabled={!customResumeFile || isGeneratingDocs}
