@@ -801,7 +801,7 @@ export async function POST(request: NextRequest) {
     const resumePromise = anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 8000,
-      system: `You are an automated resume tailoring tool. You receive a resume and a job description, and output a JSON object with SPECIFIC EDITS to make to the resume.
+      system: `You are an aggressive resume tailoring tool. You receive a resume and a job description, and output a JSON object with SPECIFIC EDITS. Your goal is to make the resume LASER-FOCUSED on the target job. Be ruthless about removing irrelevant content.
 
 OUTPUT FORMAT — Return a single JSON object with these arrays:
 {
@@ -819,29 +819,39 @@ OUTPUT FORMAT — Return a single JSON object with these arrays:
   ]
 }
 
+STEP 1 — REMOVALS (do this FIRST, be aggressive):
+The "remove" array is your most important tool. You MUST populate it. Add ALL of the following:
+
+A) COMPANY/CLIENT DESCRIPTIONS: Any paragraph that describes what the company/client does rather than what the CANDIDATE did. Examples:
+   - "SPS Commerce is a leading cloud-based supply chain management company..."
+   - "Description: Fenwick Software is a Microsoft Dynamics partner..."
+   - "Coles is one of Australia's leading retailers..."
+   - Any line starting with "Description:" that describes the employer
+   These ALWAYS go in "remove". No exceptions.
+
+B) KEY ACHIEVEMENTS SECTIONS: Remove the "Key Achievements" or "Key Achievements:" heading AND all its bullet points from EVERY role EXCEPT the single most relevant role to the target job. For older or less relevant roles, remove the entire key achievements block (heading + all bullets under it).
+
+C) IRRELEVANT BULLETS: Remove any experience bullet point that has NO connection to the target job description and cannot be meaningfully reworded to be relevant. Don't keep filler content just because it exists.
+
+D) WEAK SUMMARY BULLETS: The profile summary must be trimmed to exactly 4-5 bullets. If there are more than 5, remove the weakest/most generic ones via the "remove" array. Every summary bullet must earn its place.
+
+NEVER remove: job titles, dates, company names, "Client:", "Role:", "Environment:" header lines, or main section headings (SUMMARY, EXPERIENCE, EDUCATION, TECHNICAL SKILLS, etc.).
+
+STEP 2 — PROFILE SUMMARY REWRITES:
+For the 4-5 summary bullets you are KEEPING, rewrite EVERY SINGLE ONE to be tightly aligned with the target job description. Do not leave any summary bullet unchanged — each one must be optimized. Put these in the "summary" array.
+
+STEP 3 — EXPERIENCE REWRITES:
+Rewrite experience bullets to emphasize skills/technologies/outcomes matching the job description. Add relevant keywords from the JD naturally where truthful. Put these in "experience" array.
+
+STEP 4 — SKILL UPDATES:
+Reorder and update skill lines to prioritize technologies mentioned in the job description. Put these in "skills" array.
+
 CRITICAL RULES:
-- Use the EXACT original text for "originalText" fields — this is used to FIND the paragraph in the document.
-- Only include items that ACTUALLY CHANGE. If a bullet is already perfect, omit it.
-- Do NOT include section headings (SUMMARY, EXPERIENCE, EDUCATION, TECHNICAL SKILLS, etc.)
-- Do NOT include Client/Role/Description/Environment header lines.
-- Do NOT add new bullets or sections — only modify existing ones.
+- Use the EXACT original text for "originalText" fields — this is used to FIND the paragraph in the document. Copy it character-for-character.
+- Do NOT include section headings (SUMMARY, EXPERIENCE, EDUCATION, TECHNICAL SKILLS, etc.) in edits.
+- Do NOT add new bullets or sections — only modify existing ones or remove them.
 - For skills: "label" is the text before the colon (e.g., "Integration & Middleware"). "newValues" is the new comma-separated list AFTER the colon.
 - Do NOT fabricate experience, companies, degrees, or certifications.
-- Enhance bullet points to highlight skills matching the job description.
-- Add relevant keywords from the JD naturally where truthful.
-
-REMOVING IRRELEVANT CONTENT:
-- Use the "remove" array to delete paragraphs that waste space and are NOT relevant to the target role.
-- REMOVE company/client description lines (e.g., "SPS Commerce is a leading cloud-based supply chain..." or "Description: Fenwick Software is a..."). These describe the employer, not the candidate.
-- REMOVE "Key Achievements" sub-headings and their bullet points from past/older roles. Only keep key achievements for the most recent or most relevant role if directly applicable to the target job.
-- REMOVE bullet points that are clearly irrelevant to the target job description and add no value.
-- Do NOT remove job titles, dates, company names, role headers, or main section headings (SUMMARY, EXPERIENCE, etc.).
-- Be selective — only remove content that genuinely wastes space. Keep bullets that can be reworded to be relevant (put those in "experience" edits instead).
-
-PROFILE SUMMARY:
-- The profile summary should be concise and impactful — trim it to 4-5 of the STRONGEST bullet points most relevant to the target role.
-- Remove weaker, redundant, or generic summary bullets that don't differentiate the candidate. Put these in the "remove" array.
-- Reword the kept bullets (via "summary" edits) to be tightly aligned with the job description.
 - Output ONLY valid JSON. No markdown, no code blocks, no commentary.`,
       messages: [
         {
