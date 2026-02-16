@@ -33,6 +33,7 @@ interface ResumeEdits {
   summary: Array<{ originalText: string; newText: string }>
   skills: Array<{ label: string; newValues: string }>
   experience: Array<{ originalText: string; newText: string }>
+  remove: Array<{ originalText: string }>
 }
 
 /**
@@ -208,6 +209,7 @@ function parseResumeEdits(jsonStr: string): ResumeEdits | null {
       summary: [],
       skills: [],
       experience: [],
+      remove: [],
     }
 
     if (Array.isArray(parsed.summary)) {
@@ -233,11 +235,18 @@ function parseResumeEdits(jsonStr: string): ResumeEdits | null {
           e.originalText !== e.newText
       )
     }
+    if (Array.isArray(parsed.remove)) {
+      edits.remove = parsed.remove.filter(
+        (e: Record<string, unknown>) =>
+          typeof e.originalText === 'string' &&
+          e.originalText.length > 0
+      )
+    }
 
-    const totalEdits = edits.summary.length + edits.skills.length + edits.experience.length
+    const totalEdits = edits.summary.length + edits.skills.length + edits.experience.length + edits.remove.length
     if (totalEdits === 0) return null
 
-    console.log(`[parseEdits] Found ${edits.summary.length} summary, ${edits.skills.length} skill, ${edits.experience.length} experience edits`)
+    console.log(`[parseEdits] Found ${edits.summary.length} summary, ${edits.skills.length} skill, ${edits.experience.length} experience, ${edits.remove.length} removal edits`)
     return edits
   } catch (err) {
     console.error('[parseEdits] Failed to parse JSON:', err)
@@ -540,6 +549,18 @@ async function cloneAndTailorDocx(
     console.log(`[exp-edit] Matched paragraph ${idx}`)
   }
 
+  // 4. Apply removals (find by text content, remove entire paragraph)
+  for (const edit of edits.remove) {
+    const idx = findParagraphByText(edit.originalText, xmlParagraphs, usedIndices)
+    if (idx === -1) {
+      console.warn(`[remove] No match for: "${edit.originalText.substring(0, 60)}..."`)
+      continue
+    }
+    usedIndices.add(idx)
+    replacements.push({ start: xmlParagraphs[idx].start, end: xmlParagraphs[idx].end, newXml: '' })
+    console.log(`[remove] Removed paragraph ${idx}: "${xmlParagraphs[idx].text.substring(0, 60)}..."`)
+  }
+
   console.log(`[clone] Applying ${replacements.length} edits to document`)
 
   // Apply replacements from end to start to maintain correct positions
@@ -587,6 +608,14 @@ function applyEditsToPlainText(originalText: string, edits: ResumeEdits): string
   for (const edit of edits.experience) {
     text = text.replace(edit.originalText, edit.newText)
   }
+
+  // Apply removals (delete matching lines)
+  for (const edit of edits.remove) {
+    text = text.replace(edit.originalText, '')
+  }
+
+  // Clean up any double blank lines left by removals
+  text = text.replace(/\n{3,}/g, '\n\n')
 
   return text
 }
@@ -693,6 +722,9 @@ OUTPUT FORMAT — Return a single JSON object with these arrays:
   ],
   "experience": [
     { "originalText": "exact original bullet text", "newText": "improved version" }
+  ],
+  "remove": [
+    { "originalText": "exact text of paragraph to remove" }
   ]
 }
 
@@ -706,7 +738,13 @@ CRITICAL RULES:
 - Do NOT fabricate experience, companies, degrees, or certifications.
 - Enhance bullet points to highlight skills matching the job description.
 - Add relevant keywords from the JD naturally where truthful.
-- Keep the same number of items — you're editing, not adding or removing.
+
+REMOVING IRRELEVANT CONTENT:
+- Use the "remove" array to delete paragraphs that waste space and are NOT relevant to the target role.
+- REMOVE company/client description lines (e.g., "SPS Commerce is a leading cloud-based supply chain..." or "Description: Fenwick Software is a..."). These describe the employer, not the candidate.
+- REMOVE bullet points that are clearly irrelevant to the target job description and add no value.
+- Do NOT remove job titles, dates, company names, role headers, or section headings.
+- Be selective — only remove content that genuinely wastes space. Keep bullets that can be reworded to be relevant (put those in "experience" edits instead).
 - Output ONLY valid JSON. No markdown, no code blocks, no commentary.`,
       messages: [
         {
