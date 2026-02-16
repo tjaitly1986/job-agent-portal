@@ -798,10 +798,16 @@ export async function POST(request: NextRequest) {
     // Run resume edits + cover letter generation in PARALLEL to halve total time
     const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
-    const resumePromise = anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 8000,
-      system: `You are an aggressive resume tailoring tool. You receive a resume and a job description, and output a JSON object with SPECIFIC EDITS. Your goal is to make the resume LASER-FOCUSED on the target job. Be ruthless about removing irrelevant content.
+    // Helper: use streaming to collect the full text response.
+    // Streaming keeps the connection alive with regular data flow, preventing ECONNRESET
+    // that occurs with long-running non-streaming requests.
+    async function streamToText(
+      params: Parameters<typeof anthropic.messages.create>[0]
+    ): Promise<string> {
+      return anthropic.messages.stream(params).finalText()
+    }
+
+    const resumeSystemPrompt = `You are an aggressive resume tailoring tool. You receive a resume and a job description, and output a JSON object with SPECIFIC EDITS. Your goal is to make the resume LASER-FOCUSED on the target job. Be ruthless about removing irrelevant content.
 
 OUTPUT FORMAT — Return a single JSON object with these arrays:
 {
@@ -852,7 +858,12 @@ CRITICAL RULES:
 - Do NOT add new bullets or sections — only modify existing ones or remove them.
 - For skills: "label" is the text before the colon (e.g., "Integration & Middleware"). "newValues" is the new comma-separated list AFTER the colon.
 - Do NOT fabricate experience, companies, degrees, or certifications.
-- Output ONLY valid JSON. No markdown, no code blocks, no commentary.`,
+- Output ONLY valid JSON. No markdown, no code blocks, no commentary.`
+
+    const resumePromise = streamToText({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 8000,
+      system: resumeSystemPrompt,
       messages: [
         {
           role: 'user',
@@ -865,7 +876,7 @@ CRITICAL RULES:
       ],
     })
 
-    const coverLetterPromise = anthropic.messages.create({
+    const coverLetterPromise = streamToText({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1500,
       system: `You are an automated cover letter generator. You output ONLY the cover letter text.
@@ -884,25 +895,22 @@ The cover letter should be 250-300 words, professional, and connect the candidat
       ],
     })
 
-    // Await both in parallel — if one fails, we still get the other via allSettled
+    // Await both streams in parallel — if one fails, we still get the other via allSettled
     const [resumeResult, coverLetterResult] = await Promise.allSettled([resumePromise, coverLetterPromise])
 
     // Parse resume edits (prepend the '{' prefill)
     let edits: ResumeEdits | null = null
     if (resumeResult.status === 'fulfilled') {
-      const aiOutput = resumeResult.value.content[0].type === 'text' ? resumeResult.value.content[0].text : ''
-      const editsJson = '{' + aiOutput
+      const editsJson = '{' + resumeResult.value
       edits = parseResumeEdits(editsJson)
     } else {
       console.error('[generate] Resume edits API call failed:', resumeResult.reason)
     }
 
-    // Parse cover letter
+    // Parse cover letter (streamToText returns plain string)
     let coverLetterContent = ''
     if (coverLetterResult.status === 'fulfilled') {
-      const coverLetterAiOutput =
-        coverLetterResult.value.content[0].type === 'text' ? coverLetterResult.value.content[0].text : ''
-      coverLetterContent = `${today}\n\nDear Hiring Manager,${coverLetterAiOutput}`
+      coverLetterContent = `${today}\n\nDear Hiring Manager,${coverLetterResult.value}`
     } else {
       console.error('[generate] Cover letter API call failed:', coverLetterResult.reason)
     }
