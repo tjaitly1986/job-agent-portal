@@ -12,20 +12,22 @@ import { useCreateApplication } from '@/hooks/use-tracker'
 import {
   Sparkles,
   Search,
-  X,
   Loader2,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   ArrowUpDown,
   Calendar,
   DollarSign,
-  Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -55,7 +57,6 @@ export default function JobsPage() {
   const [selectedProfileIds, setSelectedProfileIds] = useState<Set<string>>(new Set())
   const [isSearching, setIsSearching] = useState(false)
   const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set())
-  const [searchExpanded, setSearchExpanded] = useState(false)
 
   const createApplication = useCreateApplication()
 
@@ -116,7 +117,6 @@ export default function JobsPage() {
       const selectedProfiles = profiles.filter((p) => selectedProfileIds.has(p.id))
       let totalJobs = 0
 
-      // Trigger a scrape for each selected profile
       for (const profile of selectedProfiles) {
         const searchQuery = profile.jobTitles.join(' OR ')
         const response = await fetch('/api/scrapers/trigger', {
@@ -139,10 +139,7 @@ export default function JobsPage() {
         }
       }
 
-      // Refetch jobs after scraping
       await refetch()
-
-      setSearchExpanded(false)
 
       toast({
         title: 'Job search completed',
@@ -210,249 +207,187 @@ export default function JobsPage() {
         description="Search for jobs across all platforms with AI-powered matching"
       />
 
-      {/* Collapsible Search Trigger */}
-      <Card className="overflow-hidden">
-        <button
-          className="flex w-full items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
-          onClick={() => setSearchExpanded(!searchExpanded)}
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-              <Zap className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Search New Jobs from Profiles</p>
-              <p className="text-xs text-muted-foreground">
-                {profiles.length} profiles available
-                {selectedProfileIds.size > 0 &&
-                  ` \u00B7 ${selectedProfileIds.size} selected`}
-              </p>
-            </div>
-          </div>
+      {/* Always-Visible Search Section */}
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">Select profiles to search</p>
           <div className="flex items-center gap-2">
-            {isSearching && <Loader2 className="h-4 w-4 animate-spin" />}
-            {searchExpanded ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            )}
+            <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
+              {selectedProfileIds.size} selected
+            </span>
           </div>
-        </button>
+        </div>
 
-        {searchExpanded && (
-          <div className="border-t px-4 pb-4 pt-3 space-y-3">
-            {profiles.length === 0 ? (
-              <div className="text-center py-4">
-                <p className="text-sm text-muted-foreground mb-2">
-                  No profiles found. Create a profile to start searching.
-                </p>
-                <Button
-                  size="sm"
-                  onClick={() => (window.location.href = '/dashboard/profiles')}
+        {profiles.length === 0 ? (
+          <div className="text-center py-3">
+            <p className="text-sm text-muted-foreground mb-2">
+              No profiles found. Create a profile to start searching.
+            </p>
+            <Button
+              size="sm"
+              onClick={() => (window.location.href = '/dashboard/profiles')}
+            >
+              Create Profile
+            </Button>
+          </div>
+        ) : (
+          <>
+            {/* Profile Pills */}
+            <div className="flex flex-wrap gap-2">
+              {profiles.map((profile) => (
+                <Badge
+                  key={profile.id}
+                  variant={selectedProfileIds.has(profile.id) ? 'default' : 'outline'}
+                  className={cn(
+                    'cursor-pointer text-sm py-1.5 px-3 transition-colors',
+                    selectedProfileIds.has(profile.id)
+                      ? 'hover:bg-primary/80'
+                      : 'hover:bg-muted'
+                  )}
+                  onClick={() => toggleProfileSelection(profile.id)}
                 >
-                  Create Profile
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">
-                    Select profiles to search for matching jobs
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => setSelectedProfileIds(new Set(profiles.map((p) => p.id)))}
-                    >
-                      Select All
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => setSelectedProfileIds(new Set())}
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                </div>
+                  {profile.name}
+                  {profile.isActive && !selectedProfileIds.has(profile.id) && (
+                    <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
+                  )}
+                </Badge>
+              ))}
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {profiles.map((profile) => (
-                    <div
-                      key={profile.id}
-                      className={cn(
-                        'flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors',
-                        selectedProfileIds.has(profile.id)
-                          ? 'border-primary bg-primary/5'
-                          : 'hover:bg-muted/50'
-                      )}
-                      onClick={() => toggleProfileSelection(profile.id)}
-                    >
-                      <Checkbox
-                        checked={selectedProfileIds.has(profile.id)}
-                        onCheckedChange={() => toggleProfileSelection(profile.id)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{profile.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {profile.jobTitles.slice(0, 2).join(', ')}
-                          {profile.jobTitles.length > 2 &&
-                            ` +${profile.jobTitles.length - 2}`}
-                        </p>
-                      </div>
-                      {profile.isActive && (
-                        <Badge variant="default" className="h-5 text-[10px] shrink-0">
-                          Active
-                        </Badge>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    {selectedProfileIds.size} profile(s) selected
-                  </div>
-                  <Button
-                    onClick={handleSearchJobs}
-                    disabled={isSearching || selectedProfileIds.size === 0}
-                    size="sm"
-                  >
-                    {isSearching ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Searching...
-                      </>
-                    ) : (
-                      <>
-                        <Search className="mr-2 h-4 w-4" />
-                        Search Jobs
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
+            {/* Search Button */}
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSearchJobs}
+                disabled={isSearching || selectedProfileIds.size === 0}
+                size="sm"
+              >
+                {isSearching ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Search Jobs
+                  </>
+                )}
+              </Button>
+            </div>
+          </>
         )}
       </Card>
 
-      {/* Main Content: Filters + Jobs + Detail */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        {/* Left: Filter Sidebar */}
-        <div className="lg:col-span-3">
-          <JobFilters filters={filters} onChange={setFilters} onReset={resetFilters} />
-        </div>
+      {/* Inline Filter Bar + Sort + Count */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <JobFilters filters={filters} onChange={setFilters} onReset={resetFilters} />
 
-        {/* Center: Job List */}
-        <div className={cn('lg:col-span-9', selectedJobId && 'lg:col-span-5')}>
-          {/* Sort Bar */}
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              {sortedJobs.length} jobs
-              {jobsData && jobsData.total > sortedJobs.length && ` of ${jobsData.total}`}
-            </p>
-            <div className="flex items-center gap-2">
-              <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-                <SelectTrigger className="w-[160px] h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SORT_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <div className="flex items-center gap-2">
-                        {opt.icon}
-                        {opt.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted-foreground whitespace-nowrap">
+            {sortedJobs.length} jobs
+            {jobsData && jobsData.total > sortedJobs.length && ` of ${jobsData.total}`}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="w-[150px] h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <div className="flex items-center gap-2">
+                      {opt.icon}
+                      {opt.label}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-
-          <JobGrid
-            jobs={sortedJobs}
-            isLoading={isLoading}
-            onJobClick={handleJobClick}
-            onJobSave={handleJobSave}
-            savedJobIds={savedJobIds}
-          />
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage === 1}
-                onClick={() => goToPage(currentPage - 1)}
-              >
-                Previous
-              </Button>
-
-              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                let page: number
-                if (totalPages <= 7) {
-                  page = i + 1
-                } else if (currentPage <= 4) {
-                  page = i + 1
-                } else if (currentPage >= totalPages - 3) {
-                  page = totalPages - 6 + i
-                } else {
-                  page = currentPage - 3 + i
-                }
-
-                return (
-                  <Button
-                    key={page}
-                    variant={page === currentPage ? 'default' : 'outline'}
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={() => goToPage(page)}
-                  >
-                    {page}
-                  </Button>
-                )
-              })}
-
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage === totalPages}
-                onClick={() => goToPage(currentPage + 1)}
-              >
-                Next
-              </Button>
-            </div>
-          )}
         </div>
-
-        {/* Right: Job Detail Panel */}
-        {selectedJobId && selectedJob && (
-          <div className="lg:col-span-4">
-            <div className="sticky top-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Job Details</h2>
-                <Button variant="ghost" size="icon" onClick={() => setSelectedJobId(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <JobDetail
-                job={selectedJob}
-                onSave={() => handleJobSave(selectedJob)}
-                onTrack={handleTrackApplication}
-                isSaved={savedJobIds.has(selectedJob.id)}
-              />
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* 2-Column Job Grid */}
+      <JobGrid
+        jobs={sortedJobs}
+        isLoading={isLoading}
+        onJobClick={handleJobClick}
+        onJobSave={handleJobSave}
+        savedJobIds={savedJobIds}
+      />
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage === 1}
+            onClick={() => goToPage(currentPage - 1)}
+          >
+            Previous
+          </Button>
+
+          {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+            let page: number
+            if (totalPages <= 7) {
+              page = i + 1
+            } else if (currentPage <= 4) {
+              page = i + 1
+            } else if (currentPage >= totalPages - 3) {
+              page = totalPages - 6 + i
+            } else {
+              page = currentPage - 3 + i
+            }
+
+            return (
+              <Button
+                key={page}
+                variant={page === currentPage ? 'default' : 'outline'}
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => goToPage(page)}
+              >
+                {page}
+              </Button>
+            )
+          })}
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage === totalPages}
+            onClick={() => goToPage(currentPage + 1)}
+          >
+            Next
+          </Button>
+        </div>
+      )}
+
+      {/* Job Detail Dialog */}
+      <Dialog
+        open={!!selectedJobId && !!selectedJob}
+        onOpenChange={(open) => { if (!open) setSelectedJobId(null) }}
+      >
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="sr-only">Job Details</DialogTitle>
+            <DialogDescription className="sr-only">
+              Detailed view of the selected job posting
+            </DialogDescription>
+          </DialogHeader>
+          {selectedJob && (
+            <JobDetail
+              job={selectedJob}
+              onSave={() => handleJobSave(selectedJob)}
+              onTrack={handleTrackApplication}
+              isSaved={savedJobIds.has(selectedJob.id)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
