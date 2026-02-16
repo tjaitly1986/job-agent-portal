@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { SearchProfile, CreateProfileInput } from '@/types/profile'
 import { Platform, EmploymentType } from '@/types/job'
-import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -96,7 +95,6 @@ export function ProfileForm({ profile, onSubmit, onCancel, isLoading }: ProfileF
 
   return (
     <form onSubmit={handleSubmit}>
-      <Card className="p-6">
         <div className="space-y-6">
           {/* Profile Name */}
           <div className="space-y-2">
@@ -439,7 +437,6 @@ export function ProfileForm({ profile, onSubmit, onCancel, isLoading }: ProfileF
             {isLoading ? 'Saving...' : profile ? 'Update Profile' : 'Create Profile'}
           </Button>
         </div>
-      </Card>
     </form>
   )
 }

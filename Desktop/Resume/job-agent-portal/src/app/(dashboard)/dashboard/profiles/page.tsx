@@ -8,6 +8,13 @@ import { useProfiles, useCreateProfile, useUpdateProfile, useDeleteProfile } fro
 import { SearchProfile } from '@/types/profile'
 import { UserCircle, Plus } from 'lucide-react'
 import { useUIStore } from '@/stores/ui-store'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,48 +77,47 @@ export default function ProfilesPage() {
 
   return (
     <div className="space-y-6">
-      {!isFormOpen ? (
-        <>
-          <PageHeader
-            icon={UserCircle}
-            title="Search Profiles"
-            description="Manage your job search criteria and automate job discovery"
-            action={{
-              label: 'Create Profile',
-              onClick: handleCreate,
-              icon: Plus,
-            }}
-          />
+      <PageHeader
+        icon={UserCircle}
+        title="Search Profiles"
+        description="Manage your job search criteria and automate job discovery"
+        action={{
+          label: 'Create Profile',
+          onClick: handleCreate,
+          icon: Plus,
+        }}
+      />
 
-          <ProfileList
-            profiles={profiles || []}
-            isLoading={isLoading}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onToggleActive={handleToggleActive}
-            onTriggerSearch={handleTriggerSearch}
-          />
-        </>
-      ) : (
-        <>
-          <PageHeader
-            icon={UserCircle}
-            title={editingProfile ? 'Edit Profile' : 'Create Profile'}
-            description={
-              editingProfile
+      <ProfileList
+        profiles={profiles || []}
+        isLoading={isLoading}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onToggleActive={handleToggleActive}
+        onTriggerSearch={handleTriggerSearch}
+      />
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) handleCancel() }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingProfile ? 'Edit Profile' : 'Create Profile'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingProfile
                 ? 'Update your search profile criteria'
-                : 'Define your job search preferences'
-            }
-          />
-
+                : 'Define your job search preferences'}
+            </DialogDescription>
+          </DialogHeader>
           <ProfileForm
             profile={editingProfile}
             onSubmit={handleSubmit}
             onCancel={handleCancel}
             isLoading={createProfile.isPending || updateProfile.isPending}
           />
-        </>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
