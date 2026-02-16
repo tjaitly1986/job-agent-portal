@@ -572,8 +572,12 @@ async function cloneAndTailorDocx(
   // Update the document.xml in the zip
   zip.file('word/document.xml', docXml)
 
-  // Generate new docx buffer
-  const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+  // Generate new docx buffer with DEFLATE compression to keep file size small
+  const buffer = await zip.generateAsync({
+    type: 'nodebuffer',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  })
   return Buffer.from(buffer)
 }
 
