@@ -1,4 +1,7 @@
 import { NextRequest } from 'next/server'
+
+// Two Claude API calls (resume + cover letter) can take 60-90s total
+export const maxDuration = 180
 import { successResponse, badRequestResponse, serverErrorResponse } from '@/lib/api/response'
 import { getUserIdFromRequest } from '@/lib/api/auth'
 import { db } from '@/lib/db'
@@ -20,6 +23,7 @@ import { mkdirSync, existsSync } from 'fs'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
+  timeout: 300_000, // 5 minutes — resume tailoring calls can take 30-60s
 })
 
 interface ResumeData {
