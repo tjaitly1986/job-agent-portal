@@ -1,8 +1,13 @@
 /**
  * Resume Parser - Extract structured data from resume text using Claude AI
+ *
+ * Includes in-memory cache so the resume is only parsed once per server
+ * restart (or when the resume text changes). This avoids calling Claude
+ * on every /api/jobs request.
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import crypto from 'crypto'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
@@ -28,9 +33,17 @@ export interface ParsedResume {
   summary: string
 }
 
+// ── In-memory cache keyed by hash of resume text ─────────────────────────
+const resumeCache = new Map<string, { parsed: ParsedResume; cachedAt: number }>()
+const CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
+
+function hashText(text: string): string {
+  return crypto.createHash('sha256').update(text).digest('hex').slice(0, 16)
+}
+
 const RESUME_PARSER_PROMPT = `You are an expert resume parser. Analyze the resume text and extract structured information for job matching.
 
-Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
+Return ONLY a valid JSON object (no markdown fences, no explanation) with this exact structure:
 {
   "skills": {
     "technical": ["Python", "AWS", "SQL", "Docker", ...],
@@ -63,9 +76,18 @@ CRITICAL GUIDELINES:
 - Default locations to ["United States"] if not specified`
 
 /**
- * Parse resume text and extract structured data
+ * Parse resume text and extract structured data.
+ * Results are cached in memory so repeated calls with the same resume
+ * don't hit the Claude API.
  */
 export async function parseResume(resumeText: string): Promise<ParsedResume> {
+  // Check cache first
+  const cacheKey = hashText(resumeText)
+  const cached = resumeCache.get(cacheKey)
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+    return cached.parsed
+  }
+
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
@@ -83,13 +105,22 @@ export async function parseResume(resumeText: string): Promise<ParsedResume> {
       throw new Error('Unexpected response type from Claude')
     }
 
+    // Strip markdown code fences if Claude wraps the JSON
+    let jsonText = content.text.trim()
+    if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '')
+    }
+
     // Parse JSON response
-    const parsed = JSON.parse(content.text) as ParsedResume
+    const parsed = JSON.parse(jsonText) as ParsedResume
 
     // Validate structure
     if (!parsed.skills || !parsed.experience || !parsed.preferences) {
       throw new Error('Invalid resume parse response structure')
     }
+
+    // Cache the result
+    resumeCache.set(cacheKey, { parsed, cachedAt: Date.now() })
 
     return parsed
   } catch (error) {
@@ -122,7 +153,7 @@ export async function parseResume(resumeText: string): Promise<ParsedResume> {
 export async function extractSkills(resumeText: string): Promise<string[]> {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001', // Use faster model for simple extraction
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 512,
       messages: [
         {
@@ -137,7 +168,12 @@ export async function extractSkills(resumeText: string): Promise<string[]> {
       return []
     }
 
-    const skills = JSON.parse(content.text) as string[]
+    let jsonText = content.text.trim()
+    if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '')
+    }
+
+    const skills = JSON.parse(jsonText) as string[]
     return skills
   } catch (error) {
     console.error('Skill extraction error:', error)
