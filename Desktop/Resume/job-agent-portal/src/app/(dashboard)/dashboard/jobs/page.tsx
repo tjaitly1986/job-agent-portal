@@ -70,7 +70,7 @@ export default function JobsPage() {
     }
   }, [profiles, selectedProfileIds.size])
 
-  const { data: jobsData, isLoading, refetch } = useJobs(filters)
+  const { data: jobsData, isLoading, isError, refetch } = useJobs(filters)
   const { data: selectedJob } = useJob(selectedJobId)
 
   // Sort jobs based on selected sort option
@@ -313,6 +313,8 @@ export default function JobsPage() {
       <JobGrid
         jobs={sortedJobs}
         isLoading={isLoading}
+        isError={isError}
+        onRetry={() => refetch()}
         onJobClick={handleJobClick}
         onJobSave={handleJobSave}
         savedJobIds={savedJobIds}

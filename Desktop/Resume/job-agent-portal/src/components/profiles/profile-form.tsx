@@ -19,8 +19,23 @@ interface ProfileFormProps {
   isLoading?: boolean
 }
 
-const platforms: Platform[] = ['indeed', 'dice', 'glassdoor', 'ziprecruiter', 'linkedin']
-const employmentTypes: EmploymentType[] = ['full-time', 'part-time', 'contract', 'c2c', 'temporary', 'internship']
+const platforms: Platform[] = [
+  'indeed', 'dice', 'linkedin', 'glassdoor', 'ziprecruiter',
+  'simplyhired', 'builtin', 'weworkremotely',
+]
+
+const platformDisplayNames: Record<string, string> = {
+  indeed: 'Indeed',
+  dice: 'Dice',
+  linkedin: 'LinkedIn',
+  glassdoor: 'Glassdoor',
+  ziprecruiter: 'ZipRecruiter',
+  simplyhired: 'SimplyHired',
+  builtin: 'Built In',
+  weworkremotely: 'WeWorkRemotely',
+}
+
+const employmentTypes: EmploymentType[] = ['full-time', 'part-time', 'contract', 'c2c', 'temporary', 'contract-to-hire', 'internship']
 
 export function ProfileForm({ profile, onSubmit, onCancel, isLoading }: ProfileFormProps) {
   const [formData, setFormData] = useState<CreateProfileInput>({
@@ -314,7 +329,7 @@ export function ProfileForm({ profile, onSubmit, onCancel, isLoading }: ProfileF
                     onCheckedChange={() => togglePlatform(platform)}
                   />
                   <Label htmlFor={`platform-${platform}`} className="cursor-pointer text-sm">
-                    {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                    {platformDisplayNames[platform] || platform}
                   </Label>
                 </div>
               ))}

@@ -5,6 +5,9 @@ import { DiceScraper } from './dice'
 import { LinkedInScraper } from './linkedin'
 import { GlassdoorScraper } from './glassdoor'
 import { ZipRecruiterScraper } from './ziprecruiter'
+import { SimplyHiredScraper } from './simplyhired'
+import { BuiltInScraper } from './builtin'
+import { WeWorkRemotelyScraper } from './weworkremotely'
 import { BaseScraper } from './base-scraper'
 import { ScrapeOptions, ScrapedJob } from '../mcp/types'
 import { generateDedupHash } from '../utils/dedup'
@@ -29,6 +32,9 @@ export class ScraperManager {
     this.scrapers.set('linkedin', new LinkedInScraper())
     this.scrapers.set('glassdoor', new GlassdoorScraper())
     this.scrapers.set('ziprecruiter', new ZipRecruiterScraper())
+    this.scrapers.set('simplyhired', new SimplyHiredScraper())
+    this.scrapers.set('builtin', new BuiltInScraper())
+    this.scrapers.set('weworkremotely', new WeWorkRemotelyScraper())
   }
 
   /**

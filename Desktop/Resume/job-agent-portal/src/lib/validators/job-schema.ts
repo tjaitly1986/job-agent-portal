@@ -7,6 +7,9 @@ export const platformSchema = z.enum([
   'glassdoor',
   'ziprecruiter',
   'linkedin',
+  'simplyhired',
+  'builtin',
+  'weworkremotely',
   'other',
 ])
 

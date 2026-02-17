@@ -14,12 +14,28 @@ interface JobFiltersProps {
   onReset: () => void
 }
 
-const platforms: Platform[] = ['indeed', 'dice', 'glassdoor', 'ziprecruiter', 'linkedin']
-const employmentTypes: EmploymentType[] = ['full-time', 'part-time', 'contract', 'c2c', 'temporary', 'contract-to-hire']
+const platforms: Platform[] = [
+  'indeed', 'dice', 'linkedin', 'glassdoor', 'ziprecruiter',
+  'simplyhired', 'builtin', 'weworkremotely',
+]
+
+const platformDisplayNames: Record<string, string> = {
+  indeed: 'Indeed',
+  dice: 'Dice',
+  linkedin: 'LinkedIn',
+  glassdoor: 'Glassdoor',
+  ziprecruiter: 'ZipRecruiter',
+  simplyhired: 'SimplyHired',
+  builtin: 'Built In',
+  weworkremotely: 'WeWorkRemotely',
+}
+
+const employmentTypes: EmploymentType[] = ['full-time', 'part-time', 'contract', 'c2c', 'temporary', 'contract-to-hire', 'internship']
 
 export function JobFilters({ filters, onChange, onReset }: JobFiltersProps) {
+  // Update a single filter and reset offset to page 1
   const updateFilter = (key: keyof JobFilterParams, value: unknown) => {
-    onChange({ ...filters, [key]: value })
+    onChange({ ...filters, [key]: value, offset: 0 })
   }
 
   const hasActiveFilters = !!(
@@ -38,23 +54,23 @@ export function JobFilters({ filters, onChange, onReset }: JobFiltersProps) {
       <Input
         placeholder="Search jobs..."
         value={filters.search || ''}
-        onChange={(e) => updateFilter('search', e.target.value)}
+        onChange={(e) => updateFilter('search', e.target.value || undefined)}
         className="w-[200px] h-9 text-sm"
       />
 
       {/* Platform */}
       <Select
         value={filters.platform || 'all'}
-        onValueChange={(value) => updateFilter('platform', value === 'all' ? '' : value)}
+        onValueChange={(value) => updateFilter('platform', value === 'all' ? undefined : value)}
       >
-        <SelectTrigger className="w-[140px] h-9 text-sm">
+        <SelectTrigger className="w-[150px] h-9 text-sm">
           <SelectValue placeholder="Platform" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Platforms</SelectItem>
           {platforms.map((platform) => (
             <SelectItem key={platform} value={platform}>
-              {platform.charAt(0).toUpperCase() + platform.slice(1)}
+              {platformDisplayNames[platform] || platform}
             </SelectItem>
           ))}
         </SelectContent>
@@ -63,7 +79,7 @@ export function JobFilters({ filters, onChange, onReset }: JobFiltersProps) {
       {/* Employment Type */}
       <Select
         value={filters.employmentType || 'all'}
-        onValueChange={(value) => updateFilter('employmentType', value === 'all' ? '' : value)}
+        onValueChange={(value) => updateFilter('employmentType', value === 'all' ? undefined : value)}
       >
         <SelectTrigger className="w-[150px] h-9 text-sm">
           <SelectValue placeholder="Type" />
@@ -81,7 +97,7 @@ export function JobFilters({ filters, onChange, onReset }: JobFiltersProps) {
       {/* Posted Within */}
       <Select
         value={filters.postedAfter || 'all'}
-        onValueChange={(value) => updateFilter('postedAfter', value === 'all' ? '' : value)}
+        onValueChange={(value) => updateFilter('postedAfter', value === 'all' ? undefined : value)}
       >
         <SelectTrigger className="w-[140px] h-9 text-sm">
           <SelectValue placeholder="Posted" />
@@ -103,12 +119,12 @@ export function JobFilters({ filters, onChange, onReset }: JobFiltersProps) {
         </SelectContent>
       </Select>
 
-      {/* Remote */}
+      {/* Remote — only sends isRemote=true when checked, removes filter when unchecked */}
       <div className="flex items-center gap-1.5">
         <Checkbox
           id="remote-filter"
-          checked={filters.isRemote}
-          onCheckedChange={(checked) => updateFilter('isRemote', checked)}
+          checked={filters.isRemote === true}
+          onCheckedChange={(checked) => updateFilter('isRemote', checked === true ? true : undefined)}
         />
         <Label htmlFor="remote-filter" className="text-sm cursor-pointer">
           Remote

@@ -2,7 +2,7 @@
  * Job-related TypeScript interfaces
  */
 
-export type Platform = 'indeed' | 'dice' | 'glassdoor' | 'ziprecruiter' | 'linkedin'
+export type Platform = 'indeed' | 'dice' | 'glassdoor' | 'ziprecruiter' | 'linkedin' | 'simplyhired' | 'builtin' | 'weworkremotely'
 
 export type EmploymentType = 'full-time' | 'part-time' | 'contract' | 'c2c' | 'temporary' | 'contract-to-hire' | 'internship'
 

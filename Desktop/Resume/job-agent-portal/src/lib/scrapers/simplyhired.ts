@@ -4,13 +4,14 @@ import { brightDataClient } from '../mcp/bright-data'
 import * as cheerio from 'cheerio'
 
 /**
- * ZipRecruiter job scraper
- * Strategy: Extract embedded JSON from page, fallback to cheerio HTML parsing
- * Uses Bright Data proxy (ZipRecruiter has moderate anti-bot protection)
+ * SimplyHired job scraper
+ * SimplyHired is a job aggregator similar to Indeed (owned by the same parent)
+ * Strategy: Parse HTML with cheerio (SimplyHired's HTML is relatively straightforward)
+ * Uses Bright Data proxy for reliability
  */
-export class ZipRecruiterScraper extends BaseScraper {
+export class SimplyHiredScraper extends BaseScraper {
   constructor() {
-    super('ziprecruiter')
+    super('simplyhired')
   }
 
   async scrape(options: ScrapeOptions): Promise<ScrapeResult> {
@@ -31,7 +32,6 @@ export class ZipRecruiterScraper extends BaseScraper {
 
         let html: string
         try {
-          // Try direct fetch first
           html = await this.fetchDirect(url)
         } catch {
           if (brightDataClient.isConfigured()) {
@@ -85,32 +85,31 @@ export class ZipRecruiterScraper extends BaseScraper {
 
   private parseSearchResults(html: string): Partial<ScrapedJob>[] {
     const results: Partial<ScrapedJob>[] = []
+    const $ = cheerio.load(html)
 
-    // Strategy 1: Extract embedded JSON data
+    // Strategy 1: Extract embedded JSON if available
     const jsonMatch = html.match(
-      /window\.__ZIPRECRUITER_DATA__\s*=\s*(\{[\s\S]+?\});\s*<\/script>/
-    ) || html.match(
-      /var\s+searchData\s*=\s*(\{[\s\S]+?\});\s*$/m
+      /window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]+?\});\s*<\/script>/
     )
-
     if (jsonMatch) {
       try {
         const data = JSON.parse(jsonMatch[1])
-        const jobList = data?.jobList || data?.jobs || data?.searchResults || []
-
+        const jobList = data?.jobs?.results || data?.search?.results || []
         for (const item of jobList) {
-          if (item.Title && item.OrgName) {
+          if (item.title && item.company) {
             results.push({
-              externalId: item.SaveJobID || item.JobID || undefined,
-              title: item.Title,
-              company: item.OrgName,
-              location: item.City ? `${item.City}, ${item.State}` : item.Location || 'United States',
-              salaryText: item.FormattedSalaryShort || item.Salary || undefined,
-              employmentType: item.EmploymentType || undefined,
-              description: item.Snippet || item.Description || undefined,
-              postedAtRaw: item.SaveJobDaysOld !== undefined ? `${item.SaveJobDaysOld}d ago` : item.PostedDate || 'Today',
-              applyUrl: item.JobURL || item.Url || '',
-              sourceUrl: item.JobURL || undefined,
+              externalId: item.pjid || item.jobKey || undefined,
+              title: item.title,
+              company: item.company,
+              location: item.location || item.formattedLocation || 'United States',
+              salaryText: item.salary || item.estimatedSalary || undefined,
+              description: item.snippet || undefined,
+              postedAtRaw: item.postedDate || item.dateRecency || 'Today',
+              applyUrl: item.url
+                ? item.url.startsWith('http')
+                  ? item.url
+                  : `https://www.simplyhired.com${item.url}`
+                : '',
             })
           }
         }
@@ -121,22 +120,21 @@ export class ZipRecruiterScraper extends BaseScraper {
     }
 
     // Strategy 2: Cheerio HTML parsing
-    const $ = cheerio.load(html)
-    $('[data-testid="job-card"], .job_content, article.job-listing, .jobList > div').each((_, el) => {
+    $('[data-testid="searchSerpJob"], .SerpJob-jobCard, article[data-id], li[data-jobkey]').each((_, el) => {
       const $el = $(el)
 
-      const title = $el.find('[data-testid="job-title"], .job_title, h2 a, .jobList-title').text().trim()
-      const company = $el.find('[data-testid="company-name"], .hiring_company, .jobList-introMeta .t_org_link, a[data-testid="employer-name"]').text().trim()
-      const location = $el.find('[data-testid="job-location"], .location, .jobList-introMeta .jobList-location').text().trim()
-      const salary = $el.find('[data-testid="salary"], .compensation, .jobList-salary').text().trim()
-      const posted = $el.find('[data-testid="posted-date"], .job_age, .jobList-date').text().trim()
+      const title = $el.find('[data-testid="searchSerpJobTitle"], .SerpJob-link, h2 a, .jobTitle').text().trim()
+      const company = $el.find('[data-testid="companyName"], .SerpJob-companyName, .jobposting-company, span.company').text().trim()
+      const location = $el.find('[data-testid="searchSerpJobLocation"], .SerpJob-location, .location, span.loc').text().trim()
+      const salary = $el.find('[data-testid="searchSerpJobSalary"], .SerpJob-salary, .salary-range').text().trim()
+      const posted = $el.find('[data-testid="searchSerpJobDateStamp"], .SerpJob-timestamp, .posted-date').text().trim()
 
       if (title && company) {
-        const href = $el.find('a[data-testid="job-title"]').attr('href') ||
-          $el.find('h2 a, a.job_link, a.jobList-title').first().attr('href') || ''
+        const href = $el.find('a[data-testid="searchSerpJobTitle"]').attr('href') ||
+          $el.find('h2 a, a.SerpJob-link, a.jobTitle').first().attr('href') || ''
 
         results.push({
-          externalId: $el.attr('data-job-id') || undefined,
+          externalId: $el.attr('data-id') || $el.attr('data-jobkey') || undefined,
           title,
           company,
           location: location || 'United States',
@@ -145,7 +143,7 @@ export class ZipRecruiterScraper extends BaseScraper {
           applyUrl: href.startsWith('http')
             ? href
             : href
-              ? `https://www.ziprecruiter.com${href}`
+              ? `https://www.simplyhired.com${href}`
               : '',
         })
       }
@@ -156,32 +154,31 @@ export class ZipRecruiterScraper extends BaseScraper {
 
   protected buildSearchUrl(options: ScrapeOptions, page: number = 1): string {
     const params = new URLSearchParams()
-    params.set('search', options.searchQuery)
-    params.set('page', page.toString())
+    params.set('q', options.searchQuery)
 
     if (options.location) {
-      params.set('location', options.location)
+      params.set('l', options.location)
+    }
+
+    if (page > 1) {
+      params.set('pn', page.toString())
     }
 
     if (options.remote) {
-      params.set('refine_by_location_type', 'only_remote')
+      params.set('fjt', 'remote')
     }
 
     if (options.postedWithin === '24h') {
-      params.set('days', '1')
+      params.set('fdb', '1')
     } else if (options.postedWithin === '3d') {
-      params.set('days', '3')
+      params.set('fdb', '3')
     } else if (options.postedWithin === '7d') {
-      params.set('days', '7')
+      params.set('fdb', '7')
     } else if (options.postedWithin === '14d') {
-      params.set('days', '14')
+      params.set('fdb', '14')
     }
 
-    if (options.employmentTypes?.includes('contract') || options.employmentTypes?.includes('c2c')) {
-      params.set('refine_by_employment', 'employment_type:contract')
-    }
-
-    return `https://www.ziprecruiter.com/jobs-search?${params.toString()}`
+    return `https://www.simplyhired.com/search?${params.toString()}`
   }
 
   protected parseJobListing(_html: string, _url: string): Partial<ScrapedJob> | null {

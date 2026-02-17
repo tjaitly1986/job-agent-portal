@@ -4,13 +4,14 @@ import { brightDataClient } from '../mcp/bright-data'
 import * as cheerio from 'cheerio'
 
 /**
- * ZipRecruiter job scraper
- * Strategy: Extract embedded JSON from page, fallback to cheerio HTML parsing
- * Uses Bright Data proxy (ZipRecruiter has moderate anti-bot protection)
+ * Built In job scraper
+ * Built In focuses on tech/startup jobs in major US cities
+ * Strategy: Parse HTML with cheerio — Built In has relatively clean markup
+ * Direct fetch usually works; proxy fallback for reliability
  */
-export class ZipRecruiterScraper extends BaseScraper {
+export class BuiltInScraper extends BaseScraper {
   constructor() {
-    super('ziprecruiter')
+    super('builtin')
   }
 
   async scrape(options: ScrapeOptions): Promise<ScrapeResult> {
@@ -21,7 +22,7 @@ export class ZipRecruiterScraper extends BaseScraper {
     const maxResults = options.maxResults || 30
 
     try {
-      const maxPages = Math.ceil(maxResults / 20)
+      const maxPages = Math.ceil(maxResults / 25)
 
       for (let page = 1; page <= maxPages; page++) {
         await this.waitForRateLimit()
@@ -31,7 +32,6 @@ export class ZipRecruiterScraper extends BaseScraper {
 
         let html: string
         try {
-          // Try direct fetch first
           html = await this.fetchDirect(url)
         } catch {
           if (brightDataClient.isConfigured()) {
@@ -85,58 +85,57 @@ export class ZipRecruiterScraper extends BaseScraper {
 
   private parseSearchResults(html: string): Partial<ScrapedJob>[] {
     const results: Partial<ScrapedJob>[] = []
+    const $ = cheerio.load(html)
 
-    // Strategy 1: Extract embedded JSON data
-    const jsonMatch = html.match(
-      /window\.__ZIPRECRUITER_DATA__\s*=\s*(\{[\s\S]+?\});\s*<\/script>/
-    ) || html.match(
-      /var\s+searchData\s*=\s*(\{[\s\S]+?\});\s*$/m
-    )
-
-    if (jsonMatch) {
+    // Strategy 1: JSON-LD structured data
+    $('script[type="application/ld+json"]').each((_, el) => {
       try {
-        const data = JSON.parse(jsonMatch[1])
-        const jobList = data?.jobList || data?.jobs || data?.searchResults || []
+        const jsonLd = JSON.parse($(el).text())
+        // Handle both single items and arrays
+        const items = Array.isArray(jsonLd) ? jsonLd : jsonLd['@graph'] || [jsonLd]
 
-        for (const item of jobList) {
-          if (item.Title && item.OrgName) {
+        for (const item of items) {
+          if (item['@type'] === 'JobPosting' && item.title && item.hiringOrganization?.name) {
+            const loc = item.jobLocation?.[0] || item.jobLocation
             results.push({
-              externalId: item.SaveJobID || item.JobID || undefined,
-              title: item.Title,
-              company: item.OrgName,
-              location: item.City ? `${item.City}, ${item.State}` : item.Location || 'United States',
-              salaryText: item.FormattedSalaryShort || item.Salary || undefined,
-              employmentType: item.EmploymentType || undefined,
-              description: item.Snippet || item.Description || undefined,
-              postedAtRaw: item.SaveJobDaysOld !== undefined ? `${item.SaveJobDaysOld}d ago` : item.PostedDate || 'Today',
-              applyUrl: item.JobURL || item.Url || '',
-              sourceUrl: item.JobURL || undefined,
+              externalId: item.identifier?.value || undefined,
+              title: item.title,
+              company: item.hiringOrganization.name,
+              location: loc?.address?.addressLocality
+                ? `${loc.address.addressLocality}, ${loc.address.addressRegion || ''}`
+                : 'United States',
+              salaryText: item.baseSalary?.value
+                ? `$${item.baseSalary.value.minValue}-$${item.baseSalary.value.maxValue}/${item.baseSalary.value.unitText === 'YEAR' ? 'yr' : 'hr'}`
+                : undefined,
+              employmentType: item.employmentType?.toLowerCase() || undefined,
+              description: item.description?.replace(/<[^>]*>/g, '').slice(0, 500) || undefined,
+              postedAtRaw: item.datePosted || 'Today',
+              applyUrl: item.url || '',
+              sourceUrl: item.url || undefined,
             })
           }
         }
-        if (results.length > 0) return results
-      } catch (e) {
-        this.log(`Failed to parse embedded JSON: ${e}`, 'warn')
+      } catch {
+        // Ignore invalid JSON-LD
       }
-    }
+    })
+    if (results.length > 0) return results
 
     // Strategy 2: Cheerio HTML parsing
-    const $ = cheerio.load(html)
-    $('[data-testid="job-card"], .job_content, article.job-listing, .jobList > div').each((_, el) => {
+    $('[data-id="job-card"], .job-card, article.job-listing, .views-row').each((_, el) => {
       const $el = $(el)
 
-      const title = $el.find('[data-testid="job-title"], .job_title, h2 a, .jobList-title').text().trim()
-      const company = $el.find('[data-testid="company-name"], .hiring_company, .jobList-introMeta .t_org_link, a[data-testid="employer-name"]').text().trim()
-      const location = $el.find('[data-testid="job-location"], .location, .jobList-introMeta .jobList-location').text().trim()
-      const salary = $el.find('[data-testid="salary"], .compensation, .jobList-salary').text().trim()
-      const posted = $el.find('[data-testid="posted-date"], .job_age, .jobList-date').text().trim()
+      const title = $el.find('h2 a, .job-title a, .field--name-title a, [data-testid="job-title"]').text().trim()
+      const company = $el.find('.company-name, .field--name-field-company a, [data-testid="company-name"]').text().trim()
+      const location = $el.find('.job-location, .field--name-field-job-location, [data-testid="location"]').text().trim()
+      const salary = $el.find('.job-salary, .field--name-field-salary-range').text().trim()
+      const posted = $el.find('.job-date, .field--name-created, time').text().trim()
 
       if (title && company) {
-        const href = $el.find('a[data-testid="job-title"]').attr('href') ||
-          $el.find('h2 a, a.job_link, a.jobList-title').first().attr('href') || ''
+        const href = $el.find('h2 a, .job-title a, .field--name-title a').first().attr('href') || ''
 
         results.push({
-          externalId: $el.attr('data-job-id') || undefined,
+          externalId: $el.attr('data-id') || $el.attr('data-nid') || undefined,
           title,
           company,
           location: location || 'United States',
@@ -145,8 +144,13 @@ export class ZipRecruiterScraper extends BaseScraper {
           applyUrl: href.startsWith('http')
             ? href
             : href
-              ? `https://www.ziprecruiter.com${href}`
+              ? `https://builtin.com${href}`
               : '',
+          sourceUrl: href.startsWith('http')
+            ? href
+            : href
+              ? `https://builtin.com${href}`
+              : undefined,
         })
       }
     })
@@ -155,33 +159,29 @@ export class ZipRecruiterScraper extends BaseScraper {
   }
 
   protected buildSearchUrl(options: ScrapeOptions, page: number = 1): string {
-    const params = new URLSearchParams()
-    params.set('search', options.searchQuery)
-    params.set('page', page.toString())
+    const query = encodeURIComponent(options.searchQuery)
+    const params: string[] = []
 
-    if (options.location) {
-      params.set('location', options.location)
+    if (page > 1) {
+      params.push(`page=${page}`)
     }
 
     if (options.remote) {
-      params.set('refine_by_location_type', 'only_remote')
+      params.push('allRemote=true')
     }
 
     if (options.postedWithin === '24h') {
-      params.set('days', '1')
+      params.push('daysSinceUpdated=1')
     } else if (options.postedWithin === '3d') {
-      params.set('days', '3')
+      params.push('daysSinceUpdated=3')
     } else if (options.postedWithin === '7d') {
-      params.set('days', '7')
+      params.push('daysSinceUpdated=7')
     } else if (options.postedWithin === '14d') {
-      params.set('days', '14')
+      params.push('daysSinceUpdated=14')
     }
 
-    if (options.employmentTypes?.includes('contract') || options.employmentTypes?.includes('c2c')) {
-      params.set('refine_by_employment', 'employment_type:contract')
-    }
-
-    return `https://www.ziprecruiter.com/jobs-search?${params.toString()}`
+    const paramStr = params.length > 0 ? `&${params.join('&')}` : ''
+    return `https://builtin.com/jobs/search?search=${query}${paramStr}`
   }
 
   protected parseJobListing(_html: string, _url: string): Partial<ScrapedJob> | null {

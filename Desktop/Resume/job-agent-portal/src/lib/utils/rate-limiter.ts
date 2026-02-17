@@ -18,6 +18,9 @@ class RateLimiter {
     this.config.set('linkedin', { requestsPerSecond: 0.5 }) // 1 req per 2 seconds
     this.config.set('glassdoor', { requestsPerSecond: 2 })
     this.config.set('ziprecruiter', { requestsPerSecond: 2 })
+    this.config.set('simplyhired', { requestsPerSecond: 2 })
+    this.config.set('builtin', { requestsPerSecond: 3 })
+    this.config.set('weworkremotely', { requestsPerSecond: 3 })
   }
 
   /**

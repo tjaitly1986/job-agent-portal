@@ -20,13 +20,16 @@ export function useJobs(filters: JobFilterParams) {
 
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
+          // Skip boolean false for isRemote — undefined means "no filter"
+          if (key === 'isRemote' && value === false) return
           params.append(key, String(value))
         }
       })
 
       const response = await fetch(`${API_BASE}/jobs?${params}`)
       if (!response.ok) {
-        throw new Error('Failed to fetch jobs')
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error || `Failed to fetch jobs (${response.status})`)
       }
 
       const data = await response.json()
