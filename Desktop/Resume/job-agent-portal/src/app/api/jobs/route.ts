@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { jobs, users } from '@/lib/db/schema'
+import { jobs, searchProfiles } from '@/lib/db/schema'
 import { jobFilterSchema } from '@/lib/validators/job-schema'
 import {
   successResponse,
@@ -8,13 +8,20 @@ import {
   serverErrorResponse,
 } from '@/lib/api/response'
 import { getUserIdFromRequest } from '@/lib/api/auth'
-import { eq, and, gte, lte, like, desc, asc, sql } from 'drizzle-orm'
-import { parseResume } from '@/lib/ai/resume-parser'
-import { calculateJobMatches } from '@/lib/ai/job-matcher'
+import { eq, and, or, gte, lte, like, desc, asc, sql } from 'drizzle-orm'
+import {
+  buildKeywordGroups,
+  findMatchingGroups,
+  shouldExcludeJob,
+  calculateKeywordScore,
+  buildMatchReasons,
+} from '@/lib/utils/keyword-matcher'
 
 /**
  * GET /api/jobs
- * List and filter jobs
+ * List and filter jobs — strict keyword matching against user's search profiles.
+ * Only returns jobs whose title matches keywords from the user's profile jobTitles.
+ * Uses SQL LIKE for initial fetch, then JS word-boundary matching for accuracy.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -41,8 +48,59 @@ export async function GET(request: NextRequest) {
 
     const filters = validation.data
 
-    // Build query conditions
+    // ── Fetch user's active search profiles ───────────────────────────
+    const userProfiles = await db
+      .select()
+      .from(searchProfiles)
+      .where(
+        and(
+          eq(searchProfiles.userId, userId),
+          eq(searchProfiles.isActive, true)
+        )
+      )
+
+    // Parse JSON fields from profiles (only jobTitles for title matching,
+    // excludeKeywords for filtering out unwanted jobs)
+    const parsedProfiles = userProfiles.map(p => ({
+      name: p.name,
+      jobTitles: JSON.parse(p.jobTitles || '[]') as string[],
+      excludeKeywords: JSON.parse(p.excludeKeywords || '[]') as string[],
+    }))
+
+    // Build keyword groups from jobTitles only (not includeKeywords —
+    // those are employment qualifiers like "W2"/"C2C", not role keywords)
+    const keywordGroups = buildKeywordGroups(parsedProfiles)
+
+    // Collect all exclude keywords across profiles
+    const allExcludeKeywords = parsedProfiles.flatMap(p => p.excludeKeywords)
+
+    // If no profiles or no keywords, return empty — user needs profiles to see jobs
+    if (keywordGroups.length === 0) {
+      return successResponse({
+        jobs: [],
+        total: 0,
+        limit: filters.limit,
+        offset: filters.offset,
+      })
+    }
+
+    // ── Build SQL conditions ──────────────────────────────────────────
+    // SQL LIKE is a broad pre-filter (substring matching).
+    // JS word-boundary matching is applied after fetch for accuracy.
+    const profileConditions = keywordGroups.map(group => {
+      const wordConditions = group.words.map(word =>
+        sql`LOWER(${jobs.title}) LIKE ${'%' + word + '%'}`
+      )
+      return and(...wordConditions)
+    })
+
+    const profileFilter = or(...profileConditions)
+
     const conditions = []
+
+    if (profileFilter) {
+      conditions.push(profileFilter)
+    }
 
     if (filters.platform) {
       conditions.push(eq(jobs.platform, filters.platform))
@@ -90,10 +148,9 @@ export async function GET(request: NextRequest) {
       conditions.push(lte(jobs.postedAt, filters.postedBefore))
     }
 
-    // Execute query
+    // Execute query — fetch more than needed since JS filter may remove some
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
-    // Map filter orderBy field (snake_case) to schema field (camelCase)
     const orderByFieldMap = {
       'posted_at': jobs.postedAt,
       'created_at': jobs.createdAt,
@@ -107,56 +164,69 @@ export async function GET(request: NextRequest) {
         ? asc(orderByField)
         : desc(orderByField)
 
+    // Over-fetch to account for JS word-boundary filtering removing false positives
+    const overFetchLimit = filters.limit * 3
+
     const results = await db
       .select()
       .from(jobs)
       .where(whereClause)
       .orderBy(orderByClause)
-      .limit(filters.limit)
+      .limit(overFetchLimit)
       .offset(filters.offset)
 
-    // Get total count
-    const totalResult = await db
-      .select({ count: sql<number>`count(*)` })
+    // ── JS word-boundary filter (removes false positives from SQL LIKE) ─
+    const strictMatched = results.filter(job => {
+      // Must match at least one keyword group with word-boundary matching
+      const matchingGroups = findMatchingGroups(job.title, keywordGroups)
+      if (matchingGroups.length === 0) return false
+
+      // Exclude jobs matching any excluded keyword
+      if (shouldExcludeJob(job.title, job.description || '', allExcludeKeywords)) {
+        return false
+      }
+
+      return true
+    })
+
+    // Apply pagination limit after strict filtering
+    const paginatedResults = strictMatched.slice(0, filters.limit)
+
+    // Get accurate total count — count all strict matches
+    const allResults = await db
+      .select({ id: jobs.id, title: jobs.title, description: jobs.description })
       .from(jobs)
       .where(whereClause)
 
-    const total = totalResult[0]?.count || 0
+    const totalStrict = allResults.filter(job => {
+      const matchingGroups = findMatchingGroups(job.title, keywordGroups)
+      if (matchingGroups.length === 0) return false
+      if (shouldExcludeJob(job.title, job.description || '', allExcludeKeywords)) return false
+      return true
+    }).length
 
-    // Calculate match scores if user has resume
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let jobsWithScores: any[] = results
-    try {
-      // Fetch user's resume
-      const user = await db
-        .select({ resumeText: users.resumeText })
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1)
+    // ── Calculate keyword match scores ────────────────────────────────
+    const jobsWithScores = paginatedResults.map(job => {
+      const matchingGroups = findMatchingGroups(job.title, keywordGroups)
+      const score = calculateKeywordScore(job.title, matchingGroups)
+      const reasons = buildMatchReasons(matchingGroups)
 
-      if (user[0]?.resumeText) {
-        // Parse resume (consider caching this in production)
-        const parsedResume = await parseResume(user[0].resumeText)
-
-        // Calculate match scores for all jobs
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const matches = calculateJobMatches(results as any[], parsedResume)
-
-        // Map back to jobs with scores
-        jobsWithScores = matches.map(m => ({
-          ...m.job,
-          matchScore: m.matchScore,
-          matchReasons: m.matchReasons,
-        }))
+      return {
+        ...job,
+        matchScore: score,
+        matchReasons: reasons.length > 0 ? reasons : ['Matches your search profiles'],
       }
-    } catch (matchError) {
-      // If match scoring fails, return jobs without scores
-      console.error('Match scoring error:', matchError)
-    }
+    })
+
+    // Sort by match score (highest first) then by posted date
+    jobsWithScores.sort((a, b) => {
+      if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore
+      return new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime()
+    })
 
     return successResponse({
       jobs: jobsWithScores,
-      total,
+      total: totalStrict,
       limit: filters.limit,
       offset: filters.offset,
     })
