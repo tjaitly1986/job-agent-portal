@@ -5,6 +5,20 @@ import { Job, JobFilterParams } from '@/types/job'
 
 const API_BASE = '/api'
 
+/** Convert shorthand like "24h", "3d", "7d" to an ISO timestamp */
+function postedAfterToISO(value: string): string {
+  const map: Record<string, number> = {
+    '24h': 24 * 60 * 60 * 1000,
+    '3d': 3 * 24 * 60 * 60 * 1000,
+    '7d': 7 * 24 * 60 * 60 * 1000,
+    '14d': 14 * 24 * 60 * 60 * 1000,
+  }
+  const ms = map[value]
+  if (ms) return new Date(Date.now() - ms).toISOString()
+  // Already an ISO string or unknown — pass through
+  return value
+}
+
 interface JobsResponse {
   jobs: Job[]
   total: number
@@ -22,6 +36,11 @@ export function useJobs(filters: JobFilterParams) {
         if (value !== undefined && value !== null && value !== '') {
           // Skip boolean false for isRemote — undefined means "no filter"
           if (key === 'isRemote' && value === false) return
+          // Convert shorthand posted-after values to ISO timestamps
+          if (key === 'postedAfter' && typeof value === 'string') {
+            params.append(key, postedAfterToISO(value))
+            return
+          }
           params.append(key, String(value))
         }
       })

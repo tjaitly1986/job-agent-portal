@@ -94,7 +94,7 @@ export function JobFilters({ filters, onChange, onReset }: JobFiltersProps) {
         </SelectContent>
       </Select>
 
-      {/* Posted Within */}
+      {/* Posted Within — uses stable string keys, converted to ISO in the hook */}
       <Select
         value={filters.postedAfter || 'all'}
         onValueChange={(value) => updateFilter('postedAfter', value === 'all' ? undefined : value)}
@@ -104,18 +104,10 @@ export function JobFilters({ filters, onChange, onReset }: JobFiltersProps) {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Time</SelectItem>
-          <SelectItem value={new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()}>
-            Last 24 hours
-          </SelectItem>
-          <SelectItem value={new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()}>
-            Last 3 days
-          </SelectItem>
-          <SelectItem value={new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()}>
-            Last 7 days
-          </SelectItem>
-          <SelectItem value={new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()}>
-            Last 14 days
-          </SelectItem>
+          <SelectItem value="24h">Last 24 hours</SelectItem>
+          <SelectItem value="3d">Last 3 days</SelectItem>
+          <SelectItem value="7d">Last 7 days</SelectItem>
+          <SelectItem value="14d">Last 14 days</SelectItem>
         </SelectContent>
       </Select>
 
