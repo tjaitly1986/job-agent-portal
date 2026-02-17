@@ -42,7 +42,7 @@ export abstract class BaseScraper {
   /**
    * Normalize a scraped job to standard format
    */
-  protected normalizeJob(job: Partial<ScrapedJob>): ScrapedJob | null {
+  protected normalizeJob(job: Partial<ScrapedJob>, postedWithin?: string): ScrapedJob | null {
     // Required fields
     if (!job.title || !job.company || !job.location || !job.applyUrl) {
       console.warn(`[${this.platform}] Missing required fields, skipping job`)
@@ -54,8 +54,8 @@ export abstract class BaseScraper {
       ? normalizePostedDate(job.postedAtRaw)
       : new Date().toISOString()
 
-    // Filter out jobs older than 24 hours if that's what we're looking for
-    if (!isPostedWithin24Hours(postedAt)) {
+    // Only apply 24h filter when specifically requested; otherwise trust the platform URL filter
+    if (postedWithin === '24h' && !isPostedWithin24Hours(postedAt)) {
       console.log(`[${this.platform}] Job older than 24h, skipping: ${job.title}`)
       return null
     }

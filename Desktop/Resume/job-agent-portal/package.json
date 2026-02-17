@@ -46,6 +46,7 @@
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.8.1",
     "bullmq": "^5.30.6",
+    "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.4",

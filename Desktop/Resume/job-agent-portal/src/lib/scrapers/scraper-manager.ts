@@ -3,8 +3,11 @@ import { jobs as jobsTable, scrapeRuns, scrapeLogs } from '../db/schema'
 import { IndeedScraper } from './indeed'
 import { DiceScraper } from './dice'
 import { LinkedInScraper } from './linkedin'
+import { GlassdoorScraper } from './glassdoor'
+import { ZipRecruiterScraper } from './ziprecruiter'
 import { BaseScraper } from './base-scraper'
 import { ScrapeOptions, ScrapedJob } from '../mcp/types'
+import { generateDedupHash } from '../utils/dedup'
 import { eq } from 'drizzle-orm'
 import crypto from 'crypto'
 
@@ -24,6 +27,8 @@ export class ScraperManager {
     this.scrapers.set('indeed', new IndeedScraper())
     this.scrapers.set('dice', new DiceScraper())
     this.scrapers.set('linkedin', new LinkedInScraper())
+    this.scrapers.set('glassdoor', new GlassdoorScraper())
+    this.scrapers.set('ziprecruiter', new ZipRecruiterScraper())
   }
 
   /**
@@ -195,10 +200,11 @@ export class ScraperManager {
     for (const job of jobs) {
       try {
         // Check if job already exists (by dedupHash)
+        const hash = generateDedupHash(job.title, job.company, job.location)
         const existing = await db
           .select()
           .from(jobsTable)
-          .where(eq(jobsTable.dedupHash, job.title)) // Should be dedupHash but we don't have it in the type
+          .where(eq(jobsTable.dedupHash, hash))
           .limit(1)
 
         if (existing.length > 0) {
@@ -210,7 +216,7 @@ export class ScraperManager {
         await db.insert(jobsTable).values({
           externalId: job.externalId,
           platform: job.platform,
-          dedupHash: `${job.title}-${job.company}-${job.location}`, // Simplified
+          dedupHash: hash,
           title: job.title,
           company: job.company,
           location: job.location,

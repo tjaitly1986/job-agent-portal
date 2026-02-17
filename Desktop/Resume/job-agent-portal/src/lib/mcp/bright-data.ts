@@ -1,11 +1,11 @@
 /**
  * Bright Data MCP Client Wrapper
  *
- * This module provides a TypeScript wrapper around Bright Data's scraping APIs
- * Note: Requires Bright Data API credentials in environment variables
+ * Provides HTTP fetching through Bright Data's proxy infrastructure
+ * for scraping job boards that block direct requests.
  */
 
-import { ScrapedJob, ScrapeOptions, ScrapeResult } from './types'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 
 export class BrightDataClient {
   private apiKey: string
@@ -30,57 +30,52 @@ export class BrightDataClient {
   }
 
   /**
-   * Scrape a job listing page and return structured data
-   * Uses Bright Data's scrape_as_json capability
+   * Fetch a URL through Bright Data's proxy
    */
-  async scrapeJobPage(_url: string): Promise<Partial<ScrapedJob> | null> {
+  async fetchViaProxy(
+    url: string,
+    options?: { residential?: boolean; headers?: Record<string, string> }
+  ): Promise<Response> {
     if (!this.isConfigured()) {
       throw new Error('Bright Data not configured')
     }
 
-    try {
-      // TODO: Implement actual Bright Data API call
-      // This would use fetch() to call Bright Data's REST API
-      // For now, return null to indicate not implemented
+    const zoneSuffix = options?.residential ? '-country-us' : ''
+    const proxyUrl = `http://brd-customer-${this.customerId}-zone-${this.zone}${zoneSuffix}:${this.apiKey}@brd.superproxy.io:33335`
+    const agent = new HttpsProxyAgent(proxyUrl)
 
-      console.warn('Bright Data scraping not yet implemented')
-      return null
-    } catch (error) {
-      console.error('Bright Data scrape error:', error)
-      return null
-    }
+    return fetch(url, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      agent: agent as any,
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        ...options?.headers,
+      },
+    } as RequestInit)
   }
 
   /**
-   * Search for jobs using Bright Data's search engine capability
+   * Fetch HTML content of a page via proxy
    */
-  async searchJobs(_options: ScrapeOptions): Promise<ScrapeResult> {
-    if (!this.isConfigured()) {
-      return {
-        jobs: [],
-        totalFound: 0,
-        newJobs: 0,
-        errors: ['Bright Data not configured'],
-      }
+  async fetchHtml(url: string, options?: { residential?: boolean }): Promise<string> {
+    const response = await this.fetchViaProxy(url, options)
+    if (!response.ok) {
+      throw new Error(`Bright Data proxy fetch failed: HTTP ${response.status} for ${url}`)
     }
-
-    // TODO: Implement actual search
-    console.warn('Bright Data search not yet implemented')
-
-    return {
-      jobs: [],
-      totalFound: 0,
-      newJobs: 0,
-    }
+    return response.text()
   }
 
   /**
-   * Get proxy configuration for scraping browser
+   * Get proxy configuration object (for external libraries)
    */
   getProxyConfig(residential: boolean = false): object {
+    const zoneSuffix = residential ? '-country-us' : ''
     return {
-      server: `brd.superproxy.io:22225`,
-      username: `brd-customer-${this.customerId}-zone-${this.zone}${residential ? '-residential' : ''}`,
+      server: `brd.superproxy.io:33335`,
+      username: `brd-customer-${this.customerId}-zone-${this.zone}${zoneSuffix}`,
       password: this.apiKey,
     }
   }
