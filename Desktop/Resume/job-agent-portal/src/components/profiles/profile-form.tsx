@@ -90,7 +90,39 @@ export function ProfileForm({ profile, onSubmit, onCancel, isLoading }: ProfileF
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(formData)
+    // Auto-add any typed-but-not-submitted values before submitting
+    const finalData = { ...formData }
+    if (inputValues.jobTitle.trim()) {
+      const current = finalData.jobTitles || []
+      if (!current.includes(inputValues.jobTitle.trim())) {
+        finalData.jobTitles = [...current, inputValues.jobTitle.trim()]
+      }
+    }
+    if (inputValues.skill.trim()) {
+      const current = finalData.skills || []
+      if (!current.includes(inputValues.skill.trim())) {
+        finalData.skills = [...current, inputValues.skill.trim()]
+      }
+    }
+    if (inputValues.location.trim()) {
+      const current = finalData.locations || []
+      if (!current.includes(inputValues.location.trim())) {
+        finalData.locations = [...current, inputValues.location.trim()]
+      }
+    }
+    if (inputValues.includeKeyword.trim()) {
+      const current = finalData.includeKeywords || []
+      if (!current.includes(inputValues.includeKeyword.trim())) {
+        finalData.includeKeywords = [...current, inputValues.includeKeyword.trim()]
+      }
+    }
+    if (inputValues.excludeKeyword.trim()) {
+      const current = finalData.excludeKeywords || []
+      if (!current.includes(inputValues.excludeKeyword.trim())) {
+        finalData.excludeKeywords = [...current, inputValues.excludeKeyword.trim()]
+      }
+    }
+    onSubmit(finalData)
   }
 
   return (
@@ -433,7 +465,7 @@ export function ProfileForm({ profile, onSubmit, onCancel, isLoading }: ProfileF
           <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isLoading || !formData.name || !formData.jobTitles?.length}>
+          <Button type="submit" disabled={isLoading || !formData.name || (!formData.jobTitles?.length && !inputValues.jobTitle.trim())}>
             {isLoading ? 'Saving...' : profile ? 'Update Profile' : 'Create Profile'}
           </Button>
         </div>
