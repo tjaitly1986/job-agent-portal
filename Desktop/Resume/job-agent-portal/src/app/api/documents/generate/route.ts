@@ -871,7 +871,7 @@ export async function POST(request: NextRequest) {
       return anthropic.messages.stream(params).finalText()
     }
 
-    const resumeSystemPrompt = `You are an aggressive resume tailoring tool. You receive a resume and a job description, and output a JSON object with SPECIFIC EDITS. Your goal is to make the resume LASER-FOCUSED on the target job. Be ruthless about removing irrelevant content.
+    const resumeSystemPrompt = `You are a strategic resume tailoring tool. You receive a resume and a job description, and output a JSON object with SPECIFIC EDITS. Your goal is to make the resume LASER-FOCUSED on the target job while preserving a professional career narrative. Remove company descriptions and weak content, but keep transferable experience from recent roles.
 
 OUTPUT FORMAT — Return a single JSON object with these arrays:
 {
@@ -899,13 +899,13 @@ A) COMPANY/CLIENT DESCRIPTIONS: Any paragraph that describes what the company/cl
    - Any line starting with "Description:" that describes the employer
    These ALWAYS go in "remove". No exceptions.
 
-B) KEY ACHIEVEMENTS SECTIONS: Remove the "Key Achievements" or "Key Achievements:" heading AND all its bullet points from EVERY role EXCEPT the single most relevant role to the target job. For older or less relevant roles, remove the entire key achievements block (heading + all bullets under it).
+B) KEY ACHIEVEMENTS SECTIONS: For the MOST RELEVANT role to the target job, keep ALL key achievements and rewrite them for relevance. For OTHER roles within the last 10 years, KEEP 2-3 of the most transferable achievements but remove the rest. For roles older than 10 years, you may remove achievement bullets but keep the role header, dates, environment, and a brief 1-line description if one exists.
 
-C) IRRELEVANT BULLETS: Remove any experience bullet point that has NO connection to the target job description and cannot be meaningfully reworded to be relevant. Don't keep filler content just because it exists.
+C) IRRELEVANT BULLETS: For the most relevant role, remove bullets with no connection to the target job. For other recent roles (within last 10 years), keep at least 2-3 bullets per role — choose the most transferable ones, even if they need rewording. NEVER leave a role with zero bullets unless it is older than 10 years. Every role within the last 10 years must have at least 2 bullet points.
 
 D) WEAK SUMMARY BULLETS: The profile summary must be trimmed to exactly 4-5 bullets. If there are more than 5, remove the weakest/most generic ones via the "remove" array. Every summary bullet must earn its place.
 
-NEVER remove: job titles, dates, company names, "Client:", "Role:", "Environment:" header lines, or main section headings (SUMMARY, EXPERIENCE, EDUCATION, TECHNICAL SKILLS, etc.).
+NEVER remove: job titles, dates, company names, "Client:", "Role:", "Environment:" header lines, main section headings (SUMMARY, EXPERIENCE, EDUCATION, TECHNICAL SKILLS, etc.), or sub-section headings within experience (like "Client-Facing Solution Delivery:", "Solution Architecture & Implementation:", "Technical Delivery & Leadership:", "Enterprise Integration & Automation:", etc.).
 
 STEP 2 — PROFILE SUMMARY REWRITES:
 For the 4-5 summary bullets you are KEEPING, rewrite EVERY SINGLE ONE to be tightly aligned with the target job description. Do not leave any summary bullet unchanged — each one must be optimized. Put these in the "summary" array.
