@@ -889,8 +889,8 @@ OUTPUT FORMAT — Return a single JSON object with these arrays:
   ]
 }
 
-STEP 1 — REMOVALS (do this FIRST, be aggressive):
-The "remove" array is your most important tool. You MUST populate it. Add ALL of the following:
+STEP 1 — REMOVALS (be selective, NOT aggressive):
+The "remove" array should ONLY contain company descriptions and weak summary bullets. Do NOT use it to gut experience sections.
 
 A) COMPANY/CLIENT DESCRIPTIONS: Any paragraph that describes what the company/client does rather than what the CANDIDATE did. Examples:
    - "SPS Commerce is a leading cloud-based supply chain management company..."
@@ -899,19 +899,21 @@ A) COMPANY/CLIENT DESCRIPTIONS: Any paragraph that describes what the company/cl
    - Any line starting with "Description:" that describes the employer
    These ALWAYS go in "remove". No exceptions.
 
-B) KEY ACHIEVEMENTS SECTIONS: For the MOST RELEVANT role to the target job, keep ALL key achievements and rewrite them for relevance. For OTHER roles within the last 10 years, KEEP 2-3 of the most transferable achievements but remove the rest. For roles older than 10 years, you may remove achievement bullets but keep the role header, dates, environment, and a brief 1-line description if one exists.
+B) WEAK SUMMARY BULLETS: The profile summary must be trimmed to exactly 4-5 bullets. If there are more than 5, remove the weakest/most generic ones via the "remove" array.
 
-C) IRRELEVANT BULLETS: For the most relevant role, remove bullets with no connection to the target job. For other recent roles (within last 10 years), keep at least 2-3 bullets per role — choose the most transferable ones, even if they need rewording. NEVER leave a role with zero bullets unless it is older than 10 years. Every role within the last 10 years must have at least 2 bullet points.
-
-D) WEAK SUMMARY BULLETS: The profile summary must be trimmed to exactly 4-5 bullets. If there are more than 5, remove the weakest/most generic ones via the "remove" array. Every summary bullet must earn its place.
+C) EXPERIENCE BULLET REMOVALS — STRICT LIMITS:
+   - For the MOST RELEVANT role: you may remove bullets that are completely irrelevant to the target job.
+   - For ALL OTHER roles within the last 10 years: you may remove SOME bullets, but you MUST keep AT LEAST 3 bullets per role. If a sub-section heading exists (like "Client-Facing Solution Delivery:", "Technical Delivery & Leadership:", etc.), each sub-section must keep at least 1 bullet under it. NEVER leave a sub-section heading with zero bullets underneath.
+   - For roles older than 10 years: you may remove most bullets but keep at least the role header, dates, and environment line.
+   - HARD RULE: If a role has sub-section headings, EVERY sub-section must have at least 1 bullet point. If the original bullets are irrelevant, REWRITE them to be transferable rather than removing them.
 
 NEVER remove: job titles, dates, company names, "Client:", "Role:", "Environment:" header lines, main section headings (SUMMARY, EXPERIENCE, EDUCATION, TECHNICAL SKILLS, etc.), or sub-section headings within experience (like "Client-Facing Solution Delivery:", "Solution Architecture & Implementation:", "Technical Delivery & Leadership:", "Enterprise Integration & Automation:", etc.).
 
 STEP 2 — PROFILE SUMMARY REWRITES:
 For the 4-5 summary bullets you are KEEPING, rewrite EVERY SINGLE ONE to be tightly aligned with the target job description. Do not leave any summary bullet unchanged — each one must be optimized. Put these in the "summary" array.
 
-STEP 3 — EXPERIENCE REWRITES:
-Rewrite experience bullets to emphasize skills/technologies/outcomes matching the job description. Add relevant keywords from the JD naturally where truthful. Put these in "experience" array.
+STEP 3 — EXPERIENCE REWRITES (ALL roles, not just the most relevant):
+Rewrite experience bullets across ALL roles to emphasize skills/technologies/outcomes matching the job description. For past roles (Fenwick, Vitality, Hira, etc.), rewrite their kept bullets to highlight transferable skills. Add relevant keywords from the JD naturally where truthful. Put these in "experience" array. Every role that has bullets must have at least some of them in the "experience" rewrite array.
 
 STEP 4 — SKILL UPDATES:
 Reorder and update skill lines to prioritize technologies mentioned in the job description. Put these in "skills" array.
