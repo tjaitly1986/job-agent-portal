@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Mail, Linkedin, Loader2, Copy, CheckCircle2, FileText, Upload, Download, X } from 'lucide-react'
 import { useCreateOutreachRecord, useUpdateOutreachRecord } from '@/hooks/use-outreach'
 import { OutreachHistory } from '@/components/outreach/outreach-history'
@@ -43,6 +44,14 @@ export default function OutreachPage() {
   const [showResumeDialog, setShowResumeDialog] = useState(false)
   const [customResumeFile, setCustomResumeFile] = useState<File | null>(null)
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(null)
+
+  // Section toggles for resume tailoring
+  const [updateHeading, setUpdateHeading] = useState(true)
+  const [updateSummary, setUpdateSummary] = useState(true)
+  const [updateSkills, setUpdateSkills] = useState(true)
+  const [updateExperience, setUpdateExperience] = useState(true)
+  const [updateEducation, setUpdateEducation] = useState(true)
+  const [updateCoverLetter, setUpdateCoverLetter] = useState(true)
 
   const handleGenerate = async () => {
     if (!jobDescription.trim()) {
@@ -166,6 +175,14 @@ export default function OutreachPage() {
           jobTitle: jobTitle || 'Position',
           company: company || 'the company',
           ...(uploadedResumeId && { resumeId: uploadedResumeId }),
+          sectionToggles: {
+            heading: updateHeading,
+            summary: updateSummary,
+            skills: updateSkills,
+            experience: updateExperience,
+            education: updateEducation,
+            coverLetter: updateCoverLetter,
+          },
         }),
       })
 
@@ -447,6 +464,35 @@ export default function OutreachPage() {
                   </div>
 
                   <div className="space-y-3">
+                    {/* Section toggles */}
+                    <div>
+                      <Label className="text-sm font-medium">Sections to Update</Label>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2">
+                        {[
+                          { id: 'heading', label: 'Resume Heading', checked: updateHeading, set: setUpdateHeading },
+                          { id: 'summary', label: 'Profile Summary', checked: updateSummary, set: setUpdateSummary },
+                          { id: 'skills', label: 'Technical Skills', checked: updateSkills, set: setUpdateSkills },
+                          { id: 'experience', label: 'Experience', checked: updateExperience, set: setUpdateExperience },
+                          { id: 'education', label: 'Education', checked: updateEducation, set: setUpdateEducation },
+                          { id: 'coverLetter', label: 'Cover Letter', checked: updateCoverLetter, set: setUpdateCoverLetter },
+                        ].map((toggle) => (
+                          <div key={toggle.id} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`toggle-${toggle.id}`}
+                              checked={toggle.checked}
+                              onCheckedChange={(checked) => toggle.set(checked === true)}
+                            />
+                            <label
+                              htmlFor={`toggle-${toggle.id}`}
+                              className="text-sm cursor-pointer select-none"
+                            >
+                              {toggle.label}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
                     <Button
                       onClick={() => handleGenerateDocuments(false)}
                       variant="outline"

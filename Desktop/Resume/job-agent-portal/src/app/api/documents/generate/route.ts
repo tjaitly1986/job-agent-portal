@@ -839,7 +839,17 @@ export async function POST(request: NextRequest) {
     const userId = await getUserIdFromRequest(request)
     const body = await request.json()
 
-    const { jobDescription, jobTitle, company, resumeId } = body
+    const { jobDescription, jobTitle, company, resumeId, sectionToggles } = body
+
+    // Section toggles — default all to true if not provided
+    const toggles = {
+      heading: sectionToggles?.heading !== false,
+      summary: sectionToggles?.summary !== false,
+      skills: sectionToggles?.skills !== false,
+      experience: sectionToggles?.experience !== false,
+      education: sectionToggles?.education !== false,
+      coverLetter: sectionToggles?.coverLetter !== false,
+    }
 
     if (!jobDescription) {
       return badRequestResponse('Job description is required')
@@ -926,10 +936,24 @@ CRITICAL RULES:
 - Do NOT fabricate experience, companies, degrees, or certifications.
 - Output ONLY valid JSON. No markdown, no code blocks, no commentary.`
 
+    // Build section restriction instructions based on toggles
+    const skippedSections: string[] = []
+    if (!toggles.heading) skippedSections.push('Do NOT modify the resume heading/title at the top of the resume. Leave it exactly as-is.')
+    if (!toggles.summary) skippedSections.push('Do NOT modify or remove any Profile Summary / Summary bullets. Leave the entire summary section exactly as-is. Do not include any summary items in the "summary" or "remove" arrays.')
+    if (!toggles.skills) skippedSections.push('Do NOT modify any Technical Skills lines. Leave all skill categories exactly as-is. Do not include any items in the "skills" array.')
+    if (!toggles.experience) skippedSections.push('Do NOT modify, rewrite, or remove any experience bullets. Leave all experience sections exactly as-is. Do not include any experience items in the "experience" or "remove" arrays.')
+    if (!toggles.education) skippedSections.push('Do NOT modify the Education section. Leave it exactly as-is.')
+
+    const sectionRestrictions = skippedSections.length > 0
+      ? `\n\nSECTION RESTRICTIONS — The user has chosen to SKIP updating these sections:\n${skippedSections.map((s, i) => `${i + 1}. ${s}`).join('\n')}\nYou MUST respect these restrictions. Only return edits for sections the user wants updated.`
+      : ''
+
+    const finalResumePrompt = resumeSystemPrompt + sectionRestrictions
+
     const resumePromise = streamToText({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 8000,
-      system: resumeSystemPrompt,
+      system: finalResumePrompt,
       messages: [
         {
           role: 'user',
@@ -942,24 +966,26 @@ CRITICAL RULES:
       ],
     })
 
-    const coverLetterPromise = streamToText({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 1500,
-      system: `You are an automated cover letter generator. You output ONLY the cover letter text.
+    const coverLetterPromise = toggles.coverLetter
+      ? streamToText({
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: 1500,
+          system: `You are an automated cover letter generator. You output ONLY the cover letter text.
 NEVER refuse. NEVER add commentary or explanations. Your entire output is the cover letter.
 Do NOT use markdown formatting. Output plain text only.
 The cover letter should be 250-300 words, professional, and connect the candidate's experience to the role.`,
-      messages: [
-        {
-          role: 'user',
-          content: `Candidate Resume:\n${originalResumeText}\n\nJob Description:\n${jobDescription}\n\nJob Title: ${jobTitle || 'the position'}\nCompany: ${company || 'the company'}\nCandidate Name: ${userName}\n\nWrite the cover letter now.`,
-        },
-        {
-          role: 'assistant',
-          content: `${today}\n\nDear Hiring Manager,`,
-        },
-      ],
-    })
+          messages: [
+            {
+              role: 'user',
+              content: `Candidate Resume:\n${originalResumeText}\n\nJob Description:\n${jobDescription}\n\nJob Title: ${jobTitle || 'the position'}\nCompany: ${company || 'the company'}\nCandidate Name: ${userName}\n\nWrite the cover letter now.`,
+            },
+            {
+              role: 'assistant',
+              content: `${today}\n\nDear Hiring Manager,`,
+            },
+          ],
+        })
+      : Promise.resolve('') // Skip cover letter generation if toggle is off
 
     // Await both streams in parallel — if one fails, we still get the other via allSettled
     const [resumeResult, coverLetterResult] = await Promise.allSettled([resumePromise, coverLetterPromise])

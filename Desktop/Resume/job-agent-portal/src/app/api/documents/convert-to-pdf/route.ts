@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { successResponse, badRequestResponse, serverErrorResponse } from '@/lib/api/response'
 import { getUserIdFromRequest } from '@/lib/api/auth'
-import { writeFile, readFile, unlink } from 'fs/promises'
+import { writeFile, unlink } from 'fs/promises'
 import { join } from 'path'
 import { mkdirSync, existsSync } from 'fs'
 import { execFile } from 'child_process'
