@@ -842,13 +842,23 @@ export async function POST(request: NextRequest) {
     const { jobDescription, jobTitle, company, resumeId, sectionToggles } = body
 
     // Section toggles — default all to true if not provided
+    // Keys: heading, summary, skills, education, coverLetter, exp_0, exp_1, exp_2, ...
+    const rawToggles: Record<string, boolean> = sectionToggles || {}
     const toggles = {
-      heading: sectionToggles?.heading !== false,
-      summary: sectionToggles?.summary !== false,
-      skills: sectionToggles?.skills !== false,
-      experience: sectionToggles?.experience !== false,
-      education: sectionToggles?.education !== false,
-      coverLetter: sectionToggles?.coverLetter !== false,
+      heading: rawToggles.heading !== false,
+      summary: rawToggles.summary !== false,
+      skills: rawToggles.skills !== false,
+      education: rawToggles.education !== false,
+      coverLetter: rawToggles.coverLetter !== false,
+    }
+
+    // Extract per-experience-role toggles (exp_0, exp_1, etc.)
+    // Map them to company names by parsing the resume text later
+    const experienceToggles: Record<string, boolean> = {}
+    for (const [key, val] of Object.entries(rawToggles)) {
+      if (key.startsWith('exp_')) {
+        experienceToggles[key] = val !== false
+      }
     }
 
     if (!jobDescription) {
@@ -941,8 +951,39 @@ CRITICAL RULES:
     if (!toggles.heading) skippedSections.push('Do NOT modify the resume heading/title at the top of the resume. Leave it exactly as-is.')
     if (!toggles.summary) skippedSections.push('Do NOT modify or remove any Profile Summary / Summary bullets. Leave the entire summary section exactly as-is. Do not include any summary items in the "summary" or "remove" arrays.')
     if (!toggles.skills) skippedSections.push('Do NOT modify any Technical Skills lines. Leave all skill categories exactly as-is. Do not include any items in the "skills" array.')
-    if (!toggles.experience) skippedSections.push('Do NOT modify, rewrite, or remove any experience bullets. Leave all experience sections exactly as-is. Do not include any experience items in the "experience" or "remove" arrays.')
     if (!toggles.education) skippedSections.push('Do NOT modify the Education section. Leave it exactly as-is.')
+
+    // Per-experience-role restrictions: extract company names from resume text
+    // to build specific instructions like "Do NOT modify the Fenwick Software experience"
+    if (Object.keys(experienceToggles).length > 0) {
+      const clientLines = originalResumeText.split('\n')
+        .filter(l => l.trim().startsWith('Client:'))
+        .map(l => {
+          const match = l.trim().match(/^Client:\s*(.+?)(?:\s{2,}|\t)/)
+          return match ? match[1].trim() : l.trim().replace('Client:', '').trim()
+        })
+
+      const skippedRoles: string[] = []
+      const updatedRoles: string[] = []
+      for (const [key, enabled] of Object.entries(experienceToggles)) {
+        const idx = parseInt(key.replace('exp_', ''), 10)
+        const companyName = clientLines[idx] || `experience role #${idx + 1}`
+        if (!enabled) {
+          skippedRoles.push(companyName)
+        } else {
+          updatedRoles.push(companyName)
+        }
+      }
+
+      if (skippedRoles.length > 0) {
+        skippedSections.push(
+          `Do NOT modify, rewrite, or remove any bullets under these experience roles — leave them EXACTLY as-is:\n${skippedRoles.map(r => `   - ${r}`).join('\n')}\nOnly modify experience bullets for: ${updatedRoles.join(', ') || 'none'}.`
+        )
+      }
+    } else {
+      // No per-role toggles provided — check for legacy "all experience" toggle
+      // If all experience toggles are absent, default to updating all
+    }
 
     const sectionRestrictions = skippedSections.length > 0
       ? `\n\nSECTION RESTRICTIONS — The user has chosen to SKIP updating these sections:\n${skippedSections.map((s, i) => `${i + 1}. ${s}`).join('\n')}\nYou MUST respect these restrictions. Only return edits for sections the user wants updated.`

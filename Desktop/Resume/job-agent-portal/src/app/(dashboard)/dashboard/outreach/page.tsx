@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { PageHeader } from '@/components/shared/page-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -45,13 +45,52 @@ export default function OutreachPage() {
   const [customResumeFile, setCustomResumeFile] = useState<File | null>(null)
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(null)
 
-  // Section toggles for resume tailoring
-  const [updateHeading, setUpdateHeading] = useState(true)
-  const [updateSummary, setUpdateSummary] = useState(true)
-  const [updateSkills, setUpdateSkills] = useState(true)
-  const [updateExperience, setUpdateExperience] = useState(true)
-  const [updateEducation, setUpdateEducation] = useState(true)
-  const [updateCoverLetter, setUpdateCoverLetter] = useState(true)
+  // Dynamic section toggles for resume tailoring
+  interface ResumeSection {
+    id: string
+    label: string
+    type: 'section' | 'experience'
+  }
+  const [resumeSections, setResumeSections] = useState<ResumeSection[]>([])
+  const [sectionToggles, setSectionToggles] = useState<Record<string, boolean>>({})
+  const [isLoadingStructure, setIsLoadingStructure] = useState(false)
+
+  const toggleSection = useCallback((id: string, checked: boolean) => {
+    setSectionToggles(prev => ({ ...prev, [id]: checked }))
+  }, [])
+
+  const fetchResumeStructure = useCallback(async (resumeId?: string) => {
+    setIsLoadingStructure(true)
+    try {
+      const params = resumeId ? `?resumeId=${resumeId}` : ''
+      const res = await fetch(`/api/resumes/structure${params}`)
+      if (!res.ok) throw new Error('Failed to load resume structure')
+      const data = await res.json()
+      const sections = data.data.sections as ResumeSection[]
+      setResumeSections(sections)
+      // Default all sections to checked
+      const defaults: Record<string, boolean> = {}
+      for (const s of sections) {
+        defaults[s.id] = true
+      }
+      setSectionToggles(defaults)
+    } catch {
+      // Fallback: basic sections if structure endpoint fails
+      const fallback: ResumeSection[] = [
+        { id: 'heading', label: 'Resume Heading', type: 'section' },
+        { id: 'summary', label: 'Profile Summary', type: 'section' },
+        { id: 'skills', label: 'Technical Skills', type: 'section' },
+        { id: 'education', label: 'Education', type: 'section' },
+        { id: 'coverLetter', label: 'Cover Letter', type: 'section' },
+      ]
+      setResumeSections(fallback)
+      const defaults: Record<string, boolean> = {}
+      for (const s of fallback) defaults[s.id] = true
+      setSectionToggles(defaults)
+    } finally {
+      setIsLoadingStructure(false)
+    }
+  }, [])
 
   const handleGenerate = async () => {
     if (!jobDescription.trim()) {
@@ -175,14 +214,7 @@ export default function OutreachPage() {
           jobTitle: jobTitle || 'Position',
           company: company || 'the company',
           ...(uploadedResumeId && { resumeId: uploadedResumeId }),
-          sectionToggles: {
-            heading: updateHeading,
-            summary: updateSummary,
-            skills: updateSkills,
-            experience: updateExperience,
-            education: updateEducation,
-            coverLetter: updateCoverLetter,
-          },
+          sectionToggles,
         }),
       })
 
@@ -424,7 +456,13 @@ export default function OutreachPage() {
                 </Button>
 
                 <Button
-                  onClick={() => setShowResumeDialog(!showResumeDialog)}
+                  onClick={() => {
+                    const next = !showResumeDialog
+                    setShowResumeDialog(next)
+                    if (next && resumeSections.length === 0) {
+                      fetchResumeStructure()
+                    }
+                  }}
                   disabled={isGeneratingDocs || !jobDescription.trim()}
                   variant="secondary"
                   size="lg"
@@ -464,40 +502,71 @@ export default function OutreachPage() {
                   </div>
 
                   <div className="space-y-3">
-                    {/* Section toggles */}
-                    <div>
-                      <Label className="text-sm font-medium">Sections to Update</Label>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2">
-                        {[
-                          { id: 'heading', label: 'Resume Heading', checked: updateHeading, set: setUpdateHeading },
-                          { id: 'summary', label: 'Profile Summary', checked: updateSummary, set: setUpdateSummary },
-                          { id: 'skills', label: 'Technical Skills', checked: updateSkills, set: setUpdateSkills },
-                          { id: 'experience', label: 'Experience', checked: updateExperience, set: setUpdateExperience },
-                          { id: 'education', label: 'Education', checked: updateEducation, set: setUpdateEducation },
-                          { id: 'coverLetter', label: 'Cover Letter', checked: updateCoverLetter, set: setUpdateCoverLetter },
-                        ].map((toggle) => (
-                          <div key={toggle.id} className="flex items-center gap-2">
-                            <Checkbox
-                              id={`toggle-${toggle.id}`}
-                              checked={toggle.checked}
-                              onCheckedChange={(checked) => toggle.set(checked === true)}
-                            />
-                            <label
-                              htmlFor={`toggle-${toggle.id}`}
-                              className="text-sm cursor-pointer select-none"
-                            >
-                              {toggle.label}
-                            </label>
-                          </div>
-                        ))}
+                    {/* Dynamic section toggles */}
+                    {isLoadingStructure ? (
+                      <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading resume sections...
                       </div>
-                    </div>
+                    ) : resumeSections.length > 0 ? (
+                      <div>
+                        <Label className="text-sm font-medium">Sections to Update</Label>
+                        <div className="mt-2 space-y-1">
+                          {/* Non-experience sections */}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                            {resumeSections
+                              .filter(s => s.type === 'section')
+                              .map((section) => (
+                                <div key={section.id} className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`toggle-${section.id}`}
+                                    checked={sectionToggles[section.id] ?? true}
+                                    onCheckedChange={(checked) => toggleSection(section.id, checked === true)}
+                                  />
+                                  <label
+                                    htmlFor={`toggle-${section.id}`}
+                                    className="text-sm cursor-pointer select-none"
+                                  >
+                                    {section.label}
+                                  </label>
+                                </div>
+                              ))}
+                          </div>
+
+                          {/* Experience roles - shown as indented sub-group */}
+                          {resumeSections.some(s => s.type === 'experience') && (
+                            <div className="mt-2 pt-2 border-t">
+                              <p className="text-xs font-medium text-muted-foreground mb-2">Experience Roles</p>
+                              <div className="space-y-1.5 pl-1">
+                                {resumeSections
+                                  .filter(s => s.type === 'experience')
+                                  .map((section) => (
+                                    <div key={section.id} className="flex items-center gap-2">
+                                      <Checkbox
+                                        id={`toggle-${section.id}`}
+                                        checked={sectionToggles[section.id] ?? true}
+                                        onCheckedChange={(checked) => toggleSection(section.id, checked === true)}
+                                      />
+                                      <label
+                                        htmlFor={`toggle-${section.id}`}
+                                        className="text-sm cursor-pointer select-none"
+                                      >
+                                        {section.label}
+                                      </label>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
 
                     <Button
                       onClick={() => handleGenerateDocuments(false)}
                       variant="outline"
                       className="w-full justify-start h-auto p-4"
-                      disabled={isGeneratingDocs}
+                      disabled={isGeneratingDocs || isLoadingStructure}
                     >
                       <div className="text-left">
                         <div className="font-semibold mb-1">Use Base Resume</div>
