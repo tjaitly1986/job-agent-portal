@@ -30,11 +30,17 @@ The portal uses two core MCP (Model Context Protocol) servers for job data acqui
 
 ```
 job-agent-portal/
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml                 # CI pipeline (lint, type-check, test, build)
+│   │   └── claude-review.yml     # Claude AI PR review
+│   └── pull_request_template.md  # PR template
 ├── .claude/
 │   └── settings.json              # Claude Code project-level settings
 ├── .env.local                     # Environment variables (never commit)
 ├── .env.example                   # Template for env vars
 ├── CLAUDE.md                      # THIS FILE — Claude Code master context
+├── CONTRIBUTING.md                # Contributor guide
 ├── next.config.ts                 # Next.js configuration
 ├── drizzle.config.ts              # Drizzle ORM config
 ├── package.json
@@ -430,6 +436,56 @@ npm run test:scraper -- --platform=indeed
 npm run test:scraper -- --platform=dice
 npm run test:scraper -- --platform=linkedin
 ```
+
+## CI/CD Pipeline
+
+### Workflows
+
+Two GitHub Actions workflows run automatically:
+
+1. **CI** (`.github/workflows/ci.yml`) — Runs on every push to `main` and every PR. Four parallel jobs converging into a final build step.
+2. **Claude PR Review** (`.github/workflows/claude-review.yml`) — Runs on PR open/update and `@claude` mentions in PR comments. Posts an advisory code review comment checking CLAUDE.md standards.
+
+### Status Checks
+
+| Check | Job Name | Required | Blocks Merge |
+|-------|----------|----------|--------------|
+| Lint + Format | `Lint` | Yes | Yes |
+| TypeScript | `Type Check` | Yes | Yes |
+| Unit Tests | `Unit Tests` | No | No |
+| Production Build | `Build` | Yes | Yes |
+| Claude Review | `Claude Review` | No | No (advisory) |
+
+### Branch Protection
+
+`main` is protected via GitHub Rulesets:
+
+- **No direct pushes** — all changes must go through a PR
+- **Required status checks** — Lint, Type Check, and Build must pass
+- **Admin bypass enabled** — repository admins can bypass in emergencies
+- **No required reviewers** — solo developer workflow (Claude review is advisory)
+
+### PR Workflow
+
+1. Create a feature branch (`feature/`, `fix/`, `refactor/`, `chore/`)
+2. Push and open a PR against `main`
+3. CI runs automatically (Lint, Type Check, Tests, Build)
+4. Claude posts an advisory review comment
+5. Fix any CI failures
+6. Merge when all required checks pass
+
+### Modifying Workflows
+
+- CI workflow: `.github/workflows/ci.yml`
+- Claude review workflow: `.github/workflows/claude-review.yml`
+- PR template: `.github/pull_request_template.md`
+- To add a required check, update both the workflow file AND the GitHub ruleset
+
+### GitHub Secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `ANTHROPIC_API_KEY` | Claude PR review (claude-review.yml) |
 
 ## Critical Implementation Notes
 

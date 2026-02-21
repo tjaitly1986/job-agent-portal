@@ -1,0 +1,44 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-review:
+    name: Claude Review
+    if: |
+      (github.event_name == 'pull_request') ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: true
+          prompt: |
+            Review this PR against the project's CLAUDE.md coding standards.
+            Focus on:
+            - TypeScript strict mode compliance
+            - Consistent API response shape ({ success, data?, error? })
+            - Naming conventions (kebab-case files, PascalCase components, camelCase functions)
+            - Conventional commit messages
+            - No committed secrets or .env files
+            - Proper error handling patterns
+            - Server Components by default, "use client" only when needed
+          allowed_tools: |
+            Read
+            Glob
+            Grep
+            WebSearch
+            WebFetch
