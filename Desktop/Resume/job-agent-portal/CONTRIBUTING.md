@@ -93,3 +93,5 @@ tests/
 ```
 
 Place unit tests next to the code they test, or in the `tests/` directory mirroring the `src/` structure.
+
+For more details on project architecture and conventions, see [CLAUDE.md](./CLAUDE.md).
